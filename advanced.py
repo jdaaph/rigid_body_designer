@@ -50,11 +50,8 @@ class Operation(object):
       # print '-------next point--------'
       self.cache['group_after_op'].append(new_par)
 
-
-    print [par.grid_coord for par in self.cache['group_after_op']]
-    print [par.grid_coord for par in self.cache['not_selected']]
-
-    self.model.set_particles_paste(self.cache['group_after_op'].extend(self.cache['not_selected']))
+    self.cache['group_after_op'].extend(self.cache['not_selected'])
+    self.model.set_particles_paste(self.cache['group_after_op'])
     self.model.current_operation = None
     self.model = None
 
