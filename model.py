@@ -354,7 +354,7 @@ class Model(tk.Canvas):
   
 ###########
   def set_particles_paste(self, particles):
-    self.apply_brush(self.default_brush, self.model_particles)
+    # self.apply_brush(self.default_brush, self.model_particles)
     for p in self.model_particles:  p.present = False
 
     dirty = []
