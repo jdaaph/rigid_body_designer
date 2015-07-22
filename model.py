@@ -73,6 +73,7 @@ class Model(tk.Canvas):
     self.bind('<Configure>', self.handle_resize)
     self.bind('<Command-r>', self.handle_cmdr)
     self.bind('<Command-v>', self.handle_cmdv)
+    self.bind('<Command-m>', self.handle_cmdm)
     self.bind('<Command-c>', self.handle_cmdc)
     self.bind('<Return>', self.handle_enter)
 
@@ -326,12 +327,17 @@ class Model(tk.Canvas):
   def handle_cmdr(self, event):
     print "Pressed R"
     if self.selected_particles:
-      self.current_operation = advanced.Rotate_ccw(model=self, cache={'group':self.selected_particles, 'not_selected':self.not_selected()})  
+      self.current_operation = advanced.Rotate_ccw(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})  
 
+  def handle_cmdm(self, event):
+    print "Pressed M"
+    if self.selected_particles:
+      self.current_operation = advanced.Move(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
+  
   def handle_cmdc(self, event):
     print "Pressed C"
     if self.selected_particles:
-      self.current_operation = advanced.Copy(model=self, cache={'group':self.selected_particles})
+      self.current_operation = advanced.Copy(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
 
   def handle_cmdv(self, event):
     print "Pressed V"

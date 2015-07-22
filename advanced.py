@@ -3,13 +3,17 @@ import copy
 class Operation(object):
   model = None
   cache = {}
+  _copy = False
+
   # cache field shows what information must be passed into the operation to make it work
   _cache_field_needed = []
   operate_func = None
-  def __init__(self, model=model, group=(), cache={}, cache_field=[]):
+  def __init__(self, model=model, cache={}, cache_field=[]):
     self.model = model
     self.cache = cache
     self._cache_field_needed = cache_field
+    # self._copy=True means that the selected particles will still be there after operation
+    self._copy = False
     operate_func = None
 
   def fill_cache(self, incoming):
@@ -23,13 +27,11 @@ class Operation(object):
   
   def paste(self, ref_point):
     # check all needed cache_fields have been collected
-    print "got paste cmd"
-
     if self._cache_field_needed:
       print "Sorry. %s is missing for this task" % self._cache_field_needed.pop()
 
     # Note that ref_point got passed in as a list
-    self.cache['group_after_op'] = []
+    self.cache['selected_after_op'] = []
     rp = ref_point.pop()
     bp = self.cache['base_point'].pop()
     bp_x, bp_y = bp.grid_coord[0], bp.grid_coord[1]
@@ -39,19 +41,17 @@ class Operation(object):
     print "bp:" + str(bp.grid_coord)
     print "rp:" + str(rp.grid_coord)
 
-    for par in self.cache['group']:
+    for par in self.cache['selected']:
       new_par = copy.deepcopy(par)
-      # print new_par.grid_coord
       self.operate_func(new_par, bp_x, bp_y)
-      # print new_par.grid_coord
-
       new_par.grid_coord = (rp_x+ new_par.grid_coord[0], rp_y + new_par.grid_coord[1])
-      # print new_par.grid_coord
-      # print '-------next point--------'
-      self.cache['group_after_op'].append(new_par)
+      self.cache['selected_after_op'].append(new_par)
 
-    self.cache['group_after_op'].extend(self.cache['not_selected'])
-    self.model.set_particles_paste(self.cache['group_after_op'])
+    self.cache['selected_after_op'].extend(self.cache['not_selected'])
+    if self._copy:
+      self.cache['selected_after_op'].extend(self.cache['selected'])
+
+    self.model.set_particles_paste(self.cache['selected_after_op'])
     self.model.current_operation = None
     self.model = None
 
@@ -60,21 +60,31 @@ class Operation(object):
     # x0, y0 are the x/y grid_coord for basepoint(bp)
     x,y = par.grid_coord[0] , par.grid_coord[1]
     par.grid_coord = (y-y0, -(x-x0))
+
+  def operate_copy(self, par, x0, y0):
+    x,y = par.grid_coord[0] , par.grid_coord[1]
+    par.grid_coord = (x-x0, y-y0)
+
  
-
-
 class Rotate_ccw(Operation):
   def __init__(self, model, cache): 
     super(Rotate_ccw, self).__init__(model=model , cache=cache, cache_field=['base_point'])
     self.operate_func = self.operate_rotate_ccw
-  # cache = {'group':[the particle-group to be operated], 'base_point':base point particle}
+    self._copy = False
+
+
+class Move(Operation):
+  def __init__(self, model , cache): 
+    super(Copy, self).__init__(model=model , cache=cache, cache_field=['base_point'])
+    self.operate_func = self.operate_copy
+    self._copy = False
 
 
 class Copy(Operation):
   def __init__(self, model , cache): 
-    super(Rotate_ccw, self).__init__(model=model , cache=cache, cache_field=['base_point'])
+    super(Copy, self).__init__(model=model , cache=cache, cache_field=['base_point'])
     self.operate_func = self.operate_copy
-  # cache = {'group':[the particle-group to be operated], 'base_point':base point particle}
+    self._copy = True
 
 
 

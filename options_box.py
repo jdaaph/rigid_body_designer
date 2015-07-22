@@ -421,45 +421,47 @@ class ButtonList(tk.Frame):
 
 
 class IOBox(tk.Frame):
-    file_label = None
-    choose_file_button = None
-    export_button = None
-    import_button = None
+  file_label = None
+  choose_file_button = None
+  export_button = None
+  import_button = None
 
-    file_path_var = None
+  file_path_var = None
 
-    def __init__(self, master, export_func, import_func):
-      tk.Frame.__init__(self, master)
+  def __init__(self, master, export_func, import_func):
+    tk.Frame.__init__(self, master)
 
-      self.file_path_var = tk.StringVar(self)
+    self.file_path_var = tk.StringVar(self)
 
-      self.initWidgets(export_func, import_func)
-      self.layoutWidgets()
+    self.initWidgets(export_func, import_func)
+    self.layoutWidgets()
 
-    def initWidgets(self, export_func, import_func):
-      ## Initialize all widgets of the ExportBox
+  def initWidgets(self, export_func, import_func):
+    ## Initialize all widgets of the ExportBox
 
-      ## Make file label (shows path to file destination)
-      self.file_label = tk.Label(master = self, textvariable = self.file_path_var)
+    ## Make file label (shows path to file destination)
+    self.file_label = tk.Label(master = self, textvariable = self.file_path_var)
 
-      ## Make file button (for choosing file destination)
-      self.choose_file_button = tk.Button(master = self, text = "...", command = self.set_export_destination)
+    ## Make file button (for choosing file destination)
+    self.choose_file_button = tk.Button(master = self, text = "...", command = self.set_export_destination)
 
-      ## Make export button (for triggering export of data)
-      self.export_button = tk.Button(master = self, text = "Export", command = lambda: export_func(self.file_path_var.get()))
+    ## Make export button (for triggering export of data)
+    self.export_button = tk.Button(master = self, text = "Export", command = lambda: export_func(self.file_path_var.get()))
 
-      self.import_button = tk.Button(master = self, text = "Import", command = import_func)
-    def layoutWidgets(self):
-      ## Configure columns so that first column (with the file-path label)
-      ## gets expanded
-      self.columnconfigure(0, weight = 1)
+    self.import_button = tk.Button(master = self, text = "Import", command = import_func)
+  def layoutWidgets(self):
+    ## Configure columns so that first column (with the file-path label)
+    ## gets expanded
+    self.columnconfigure(0, weight = 1)
 
-      ## Add components
-      self.file_label.grid(row = 0, column = 0, sticky = tk.E + tk.N + tk.S)
-      self.choose_file_button.grid(row = 0, column = 1, sticky = sticky_all)
-      self.export_button.grid(row = 1, columnspan = 2, sticky = sticky_all)
-      self.import_button.grid(row = 2, columnspan = 2, sticky = sticky_all)
+    ## Add components
+    self.file_label.grid(row = 0, column = 0, sticky = tk.E + tk.N + tk.S)
+    self.choose_file_button.grid(row = 0, column = 1, sticky = sticky_all)
+    self.export_button.grid(row = 1, columnspan = 2, sticky = sticky_all)
+    self.import_button.grid(row = 2, columnspan = 2, sticky = sticky_all)
 
-    def set_export_destination(self):
-      path = tkFileDialog.asksaveasfilename(title = "Choose export path...", defaultextension=".xml", filetypes=[("XML", "*.xml"), ("RBD", "*.rbd")])
-      self.file_path_var.set(path)
+  def set_export_destination(self):
+    path = tkFileDialog.asksaveasfilename(title = "Choose export path...", defaultextension=".xml", filetypes=[("XML", "*.xml"), ("RBD", "*.rbd")])
+    self.file_path_var.set(path)
+
+
