@@ -5,6 +5,7 @@ import itertools as it
 sticky_all = tk.N + tk.S + tk.E + tk.W
 
 class DesignBox(tk.Frame):
+  # canvas is the model....
   canvas = None
   xscrollbar = None
   yscrollbar = None

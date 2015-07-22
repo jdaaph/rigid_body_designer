@@ -2,7 +2,7 @@ import Tkinter as tk
 import ttk
 import itertools as it
 
-import advanced
+import Operation
 from brush import Brush
 
 sticky_all = tk.N + tk.S + tk.E + tk.W
@@ -75,6 +75,7 @@ class Model(tk.Canvas):
     self.bind('<Command-v>', self.handle_cmdv)
     self.bind('<Command-m>', self.handle_cmdm)
     self.bind('<Command-c>', self.handle_cmdc)
+    self.bind('<Command-s>', self.handle_cmds)
     self.bind('<Return>', self.handle_enter)
 
   @property
@@ -327,17 +328,17 @@ class Model(tk.Canvas):
   def handle_cmdr(self, event):
     print "Pressed R"
     if self.selected_particles:
-      self.current_operation = advanced.Rotate_ccw(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})  
+      self.current_operation = Operation.Rotate_ccw(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})  
 
   def handle_cmdm(self, event):
     print "Pressed M"
     if self.selected_particles:
-      self.current_operation = advanced.Move(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
+      self.current_operation = Operation.Move(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
   
   def handle_cmdc(self, event):
     print "Pressed C"
     if self.selected_particles:
-      self.current_operation = advanced.Copy(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
+      self.current_operation = Operation.Copy(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
 
   def handle_cmdv(self, event):
     print "Pressed V"
@@ -345,6 +346,11 @@ class Model(tk.Canvas):
     if single_par_selected and self.current_operation:
       self.current_operation.paste(self.selected_particles)
       self.current_operation = None
+
+  def handle_cmds(self, event):
+    print "Pressed S"
+    if self.selected_particles:
+      self.current_operation = Operation.Group_Set(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected(), 'old_brush':self.get_brush()})
 
   def handle_enter(self, event):
     print "Pressed Enter"

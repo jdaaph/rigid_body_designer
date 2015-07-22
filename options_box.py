@@ -7,6 +7,7 @@ import re
 
 from model import Model
 from brush import Brush
+from Operation import Group_Set
 
 def tuple2color(vals):
   str_vals = map(lambda n: format(n%4096, '03x'), vals)
@@ -20,10 +21,11 @@ class OptionsBox(tk.Frame):
   tool_box = None
   edit_box = None
   io_box = None
+  operation_box = None
 
   brush_change_callbacks = None
   model_change_callbacks = None
-  def __init__(self, master, model_func = None, export_func = None, import_func = None):
+  def __init__(self, master, model_func=None, export_func=None, import_func=None, cancel_func=None):
     tk.Frame.__init__(self, master)
 
     self.brush_change_callbacks = []
@@ -42,12 +44,17 @@ class OptionsBox(tk.Frame):
         brush_func = self.get_brush, callback = self.trigger_brush_change)
     self.add_brush_change_callback(self.edit_box.update_fields)
 
+    # add this callback to make use of Operations.Group_Set
+    self.add_brush_change_callback(self.watchdog_group_set)
+
     self.io_box = IOBox(master = self, export_func = export_func, import_func = import_func)
-    
+    self.operation_box = OperationBox(master=self, cancel_func=cancel_func)
+
     self.models_box.grid(sticky = sticky_all)
     self.tool_box.grid(sticky = sticky_all)
     self.edit_box.grid(sticky = sticky_all)
     self.io_box.grid(sticky = sticky_all)
+    self.operation_box.grid(sticky = sticky_all)
 
     self.trigger_brush_change()
 
@@ -78,6 +85,25 @@ class OptionsBox(tk.Frame):
     self.tool_box.set_body_specs(specs)
   def set_models(self, models):
     self.models_box.set_models(models)
+
+  def watchdog_group_set(self):
+    '''This is added to the brush_change_callback, the watchdog that will enable group_set to detect brush change'''
+    # This ugly try is to surpass the first brush_change_callback when initializing the app
+    try:
+      curr_op = self.models_box.get_model().current_operation
+      brush = self.get_model().get_brush()
+      brush_not_empty = (brush.particle_specs) and (brush.body_specs)
+      # fill the cache with new brush specs, and check that the new brush spec must not be empty
+      if isinstance (curr_op, Group_Set) and brush_not_empty:
+        curr_op.fill_cache(brush)
+        curr_op.paste()
+      elif isinstance (curr_op, Group_Set) and not brush_not_empty:
+        print "can't delete in this way, please try normal way to delete"
+        curr_op.cancel()
+
+    except IndexError:
+      pass
+
 
 
 class ModelsBox(tk.Frame):
@@ -465,3 +491,35 @@ class IOBox(tk.Frame):
     self.file_path_var.set(path)
 
 
+class OperationBox(tk.Frame):
+  hint_label = None
+  cache_label = None
+  cancel_button = None
+
+  hint_var = None
+  cache_var = None
+
+  def __init__(self, master, cancel_func):
+    tk.Frame.__init__(self, master)
+
+    self.hint_var = tk.StringVar(self)
+    self.cache_var = tk.StringVar(self)
+
+    self.initWidgets(cancel_func)
+    self.layoutWidgets()
+
+  def initWidgets(self, cancel_func):
+    self.hint_label = tk.Label(master = self, textvariable = self.hint_var)
+    self.cache_label = tk.Label(master = self, textvariable = self.cache_var)
+    ## Make cancel_button, for cancel current operation and dump the cache
+    self.cancel_button = tk.Button(master = self, text = "Cancel", command = cancel_func)
+
+  def layoutWidgets(self):
+    ## Configure columns so that first column (with the file-path label)
+    ## gets expanded
+    self.columnconfigure(0, weight = 1)
+
+    ## Add components
+    self.hint_label.grid(row = 0, column = 0, sticky = tk.E + tk.N + tk.S)
+    self.cache_label.grid(row = 1, column = 0, sticky = tk.E + tk.N + tk.S)
+    self.cancel_button.grid(row = 2, columnspan = 2, sticky = sticky_all)

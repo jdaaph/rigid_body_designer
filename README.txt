@@ -1,5 +1,5 @@
 Added operation: 
-  Rotate_ccw, Move, Copy
+  Rotate_ccw, Move, Copy, Group_Set
 
 Details:
   1. Rotate_ccw:
@@ -15,3 +15,5 @@ Details:
     1.4 Select your reference point, which is the new location that your rotation axis will be, and Press <LeftCommand-v> to execute the operation.
 
   3. Copy: (Same with Move except for the command is <Command-c>)
+
+  4. 

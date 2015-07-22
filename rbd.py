@@ -3,7 +3,8 @@ import ttk
 import tkFileDialog
 
 from design_box import DesignBox
-from options_box import OptionsBox
+from options_box import OptionsBox, OperationBox
+# from Operation import Operation
 from model import Model
 import rbd_io
 
@@ -23,7 +24,7 @@ class Application(tk.Frame):
 
   def initWidgets(self):
     self.design_box = DesignBox(self)
-    self.options_box = OptionsBox(self, self.make_new_model, self.export_data, self.import_data)
+    self.options_box = OptionsBox(self, self.make_new_model, self.export_data, self.import_data, self.cancel_operation)
     self.quitButton = tk.Button(self, text='Quit', command=self.quit)
 
     self.options_box.add_model_change_callback(self.update_design_box)
@@ -74,6 +75,10 @@ class Application(tk.Frame):
   def import_data(self):
     path = tkFileDialog.askopenfilename(title = "Choose import path...", defaultextension=".rbd", filetypes=[("RBD", "*.rbd"), ("All files", "*")])
     rbd_io.import_rbd(path, self)
+
+  def cancel_operation(self):
+    self.design_box.canvas.current_operation.cancel()
+    
 
 
 
