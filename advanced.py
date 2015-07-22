@@ -63,7 +63,7 @@ class Operation(object):
     # x0, y0 are the x/y grid_coord for basepoint(bp)
     x,y = par.grid_coord[0] , par.grid_coord[1]
     par.grid_coord = (y-y0, -(x-x0))
-
+ 
 
 
 class Rotate_ccw(Operation):
