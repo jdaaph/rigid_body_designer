@@ -20,7 +20,7 @@ class Operation(object):
     else:
       self.model.current_operation = None
       print "cache does not need this, I quit!@!"
-
+  
   def paste(self, ref_point):
     # check all needed cache_fields have been collected
     print "got paste cmd"
