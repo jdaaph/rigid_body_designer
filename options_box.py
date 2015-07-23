@@ -44,8 +44,9 @@ class OptionsBox(tk.Frame):
         brush_func = self.get_brush, callback = self.trigger_brush_change)
     self.add_brush_change_callback(self.edit_box.update_fields)
 
-    # add this callback to make use of Operations.Group_Set
+    # add this callback to make use of Operations.Group_Set and trans_model_copy
     self.add_brush_change_callback(self.watchdog_group_set)
+    self.add_model_change_callback(self.watchdog_trans_model_op)
 
     self.io_box = IOBox(master = self, export_func = export_func, import_func = import_func)
     self.operation_box = OperationBox(master=self, cancel_func=cancel_func)
@@ -104,6 +105,17 @@ class OptionsBox(tk.Frame):
     except IndexError:
       pass
 
+  def watchdog_trans_model_op(self):
+    ''' Used to monitor model change, will pass the current model's current_op to the next selected model '''
+    # This ugly try is to surpass the first model_change_callback when initializing the app
+    # note this is called by the ModelList class
+    prev_model = self.models_box.canvas.prev_model
+    new_model = self.models_box.get_model()
+    if prev_model and prev_model.current_operation and (prev_model is not new_model):
+      new_model.current_operation, prev_model.current_operation  = prev_model.current_operation, None
+      new_model.current_operation.model = new_model
+      new_model.current_operation.cache['not_selected'] = new_model.particles
+    self.models_box.canvas.prev_model = new_model
 
 
 class ModelsBox(tk.Frame):
@@ -143,6 +155,10 @@ class ModelsBox(tk.Frame):
 
     callback = None
     make_new_model = None
+
+    # used for trans-model-copy option
+    prev_model = None
+
     def __init__(self, master, model_func, callback):
       tk.Canvas.__init__(self, master, highlightthickness = 0)
 
