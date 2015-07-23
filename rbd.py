@@ -24,7 +24,7 @@ class Application(tk.Frame):
 
   def initWidgets(self):
     self.design_box = DesignBox(self)
-    self.options_box = OptionsBox(self, self.make_new_model, self.export_data, self.import_data, self.cancel_operation)
+    self.options_box = OptionsBox(self, self.make_new_model, self.export_data, self.import_data)
     self.quitButton = tk.Button(self, text='Quit', command=self.quit)
 
     self.options_box.add_model_change_callback(self.update_design_box)

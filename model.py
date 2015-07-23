@@ -4,6 +4,7 @@ import itertools as it
 
 import Operation
 from brush import Brush
+from copy import deepcopy
 
 sticky_all = tk.N + tk.S + tk.E + tk.W
 
@@ -265,12 +266,21 @@ class Model(tk.Canvas):
       dirty = normal_click()
     self.redraw_particles(dirty)
 
+  # def handle_left_drag(self, event):
+  #   self.focus_set()
+  #   x = self.canvasx(event.x)
+  #   y = self.canvasy(event.y)
+  #   grid_coord = self.canvas_grid.pixel_to_grid_coord((x,y), self.cur_diameter())
+  #   self.handle_left_click(event, self.grid_coord_to_particle[grid_coord])  
+
   def handle_left_drag(self, event):
     self.focus_set()
     x = self.canvasx(event.x)
     y = self.canvasy(event.y)
     grid_coord = self.canvas_grid.pixel_to_grid_coord((x,y), self.cur_diameter())
     self.handle_left_click(event, self.grid_coord_to_particle[grid_coord])
+
+
   def handle_left_click(self, event, particle):
     self.focus_set()
     brush = self.get_brush()
@@ -310,7 +320,7 @@ class Model(tk.Canvas):
 
   # new library begins
   def buddy_finder(self, particle):
-    '''returns a list of particles in the same body as particle is'''
+    '''returns a list of particles in the same body as particle'''
     body = particle.body_specs
     buddies = []
     for ite in self.particles:
@@ -328,29 +338,33 @@ class Model(tk.Canvas):
   def handle_cmdr(self, event):
     print "Pressed R"
     if self.selected_particles:
-      self.current_operation = Operation.Rotate_ccw(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})  
+
+      self.current_operation = Operation.Rotate_ccw(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()}, 
+        operation_box=self.master.master.options_box.operation_box)  
 
   def handle_cmdm(self, event):
     print "Pressed M"
     if self.selected_particles:
-      self.current_operation = Operation.Move(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
+      self.current_operation = Operation.Move(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()}, 
+        operation_box=self.master.master.options_box.operation_box)
   
   def handle_cmdc(self, event):
     print "Pressed C"
     if self.selected_particles:
-      self.current_operation = Operation.Copy(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()})
+      self.current_operation = Operation.Copy(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()}, 
+        operation_box=self.master.master.options_box.operation_box) 
+
+  def handle_cmds(self, event):
+    print "Pressed S"
+    if self.selected_particles:
+      self.current_operation = Operation.Group_Set(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected(), 'old_brush':self.get_brush()},
+        operation_box=self.master.master.options_box.operation_box) 
 
   def handle_cmdv(self, event):
     print "Pressed V"
     single_par_selected = len(self.selected_particles) == 1
     if single_par_selected and self.current_operation:
       self.current_operation.paste(self.selected_particles)
-      self.current_operation = None
-
-  def handle_cmds(self, event):
-    print "Pressed S"
-    if self.selected_particles:
-      self.current_operation = Operation.Group_Set(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected(), 'old_brush':self.get_brush()})
 
   def handle_enter(self, event):
     print "Pressed Enter"
@@ -509,3 +523,9 @@ class Particle(object):
 
     self.particle_specs = particle_specs
     self.body_specs = body_specs
+
+  def copy(self):
+    new_par = deepcopy(self)
+    new_par.particle_specs = self.particle_specs
+    new_par.body_specs = self.body_specs
+    return new_par

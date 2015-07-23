@@ -25,7 +25,7 @@ class OptionsBox(tk.Frame):
 
   brush_change_callbacks = None
   model_change_callbacks = None
-  def __init__(self, master, model_func=None, export_func=None, import_func=None, cancel_func=None):
+  def __init__(self, master, model_func=None, export_func=None, import_func=None):
     tk.Frame.__init__(self, master)
 
     self.brush_change_callbacks = []
@@ -49,7 +49,7 @@ class OptionsBox(tk.Frame):
     self.add_model_change_callback(self.watchdog_trans_model_op)
 
     self.io_box = IOBox(master = self, export_func = export_func, import_func = import_func)
-    self.operation_box = OperationBox(master=self, cancel_func=cancel_func)
+    self.operation_box = OperationBox(master=self)
 
     self.models_box.grid(sticky = sticky_all)
     self.tool_box.grid(sticky = sticky_all)
@@ -512,23 +512,26 @@ class OperationBox(tk.Frame):
   cache_label = None
   cancel_button = None
 
-  hint_var = None
-  cache_var = None
+  # var holds the strings to be displayed on GUI
+  var_hint = None
+  var_cache = None
+  current_operation = None
 
-  def __init__(self, master, cancel_func):
+  def __init__(self, master):
     tk.Frame.__init__(self, master)
 
-    self.hint_var = tk.StringVar(self)
-    self.cache_var = tk.StringVar(self)
+    self.var_hint = tk.StringVar(self)
+    self.var_cache = tk.StringVar(self)
+    self.current_operation = None
 
-    self.initWidgets(cancel_func)
+    self.initWidgets()
     self.layoutWidgets()
 
-  def initWidgets(self, cancel_func):
-    self.hint_label = tk.Label(master = self, textvariable = self.hint_var)
-    self.cache_label = tk.Label(master = self, textvariable = self.cache_var)
+  def initWidgets(self):
+    self.hint_label = tk.Label(master = self, textvariable = self.var_hint)
+    self.cache_label = tk.Label(master = self, textvariable = self.var_cache)
     ## Make cancel_button, for cancel current operation and dump the cache
-    self.cancel_button = tk.Button(master = self, text = "Cancel", command = cancel_func)
+    self.cancel_button = tk.Button(master = self, text = "Cancel Operation", command = lambda: self.current_operation.cancel() if self.current_operation else None)
 
   def layoutWidgets(self):
     ## Configure columns so that first column (with the file-path label)
@@ -539,3 +542,5 @@ class OperationBox(tk.Frame):
     self.hint_label.grid(row = 0, column = 0, sticky = tk.E + tk.N + tk.S)
     self.cache_label.grid(row = 1, column = 0, sticky = tk.E + tk.N + tk.S)
     self.cancel_button.grid(row = 2, columnspan = 2, sticky = sticky_all)
+
+
