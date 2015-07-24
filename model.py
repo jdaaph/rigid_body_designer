@@ -45,6 +45,8 @@ class Model(tk.Canvas):
   zoom = 1.0 ## Zoom level (1 = no zoom)
 
   current_operation = None
+  # left_press_coord records where the left mouse btn has been pressed, this would determine if an action is a click or drag
+  left_press_coord = None
 
   def __init__(self, master, brush_func, default_brush = None, grid_type = GRID_SQUARE):
     tk.Canvas.__init__(self, master, bd = 0, highlightthickness = 0)
@@ -76,7 +78,6 @@ class Model(tk.Canvas):
     self.bind('<Command-v>', self.handle_cmdv)
     self.bind('<Command-m>', self.handle_cmdm)
     self.bind('<Command-c>', self.handle_cmdc)
-    self.bind('<Command-s>', self.handle_cmds)
     self.bind('<Return>', self.handle_enter)
 
   @property
@@ -140,11 +141,15 @@ class Model(tk.Canvas):
       self.draw_new_particles();
 
   def add_new_particle(self, grid_coord):
+
     oval_id = self.create_oval(0, 0, 0, 0, tags = 'particle', state = tk.HIDDEN)
     particle = Particle(grid_coord, oval_id, self.default_brush.particle_specs, self.default_brush.body_specs)
 
-    self.tag_bind(oval_id, "<Button-1>", lambda e,p=particle: self.handle_left_click(e, p))
-    self.tag_bind(oval_id, "<B1-Motion>", self.handle_left_drag)
+    # self.tag_bind(oval_id, "<Button-1>", lambda e,p=particle: self.handle_left_click(e, p))
+    # self.tag_bind(oval_id, "<B1-Motion>", self.handle_left_drag)
+    self.tag_bind(oval_id, "<ButtonPress-1>", lambda e: self.handle_left_press(e))
+    self.tag_bind(oval_id, "<ButtonRelease-1>", lambda e, p=particle: self.handle_left_release(e, p))
+
     self.tag_bind(oval_id, "<Button-2>", lambda e,p=particle: self.handle_right_click(e, p))
     self.tag_bind(oval_id, "<B2-Motion>", self.handle_right_drag)
 
@@ -197,7 +202,6 @@ class Model(tk.Canvas):
         dirty.append(p)
     self.redraw_particles(dirty)
 
-
   def apply_brush(self, brush, particles):
     erase = brush.particle_specs == None and brush.body_specs == None
     for p in particles:
@@ -211,7 +215,6 @@ class Model(tk.Canvas):
         self.model_particles.add(p)
         if brush.particle_specs != None:  p.particle_specs = brush.particle_specs
         if brush.body_specs != None:  p.body_specs = brush.body_specs
-
 
   def canvas_bounding_box(self):
     topleft = (self.canvasx(0), self.canvasy(0))
@@ -250,7 +253,9 @@ class Model(tk.Canvas):
         self.selected_particles.add(particle)
       return [particle]
     def leftalt_click():
+
       body = Model.buddy_finder(self,particle)
+      self.selected_particles = set([])
       for par in body:
         self.selected_particles.add(par)
       return body
@@ -266,20 +271,27 @@ class Model(tk.Canvas):
       dirty = normal_click()
     self.redraw_particles(dirty)
 
-  # def handle_left_drag(self, event):
-  #   self.focus_set()
-  #   x = self.canvasx(event.x)
-  #   y = self.canvasy(event.y)
-  #   grid_coord = self.canvas_grid.pixel_to_grid_coord((x,y), self.cur_diameter())
-  #   self.handle_left_click(event, self.grid_coord_to_particle[grid_coord])  
-
-  def handle_left_drag(self, event):
+  def handle_left_press(self, event):
     self.focus_set()
     x = self.canvasx(event.x)
     y = self.canvasy(event.y)
+    print "Press: " + str((x,y))
     grid_coord = self.canvas_grid.pixel_to_grid_coord((x,y), self.cur_diameter())
-    self.handle_left_click(event, self.grid_coord_to_particle[grid_coord])
+    self.left_press_coord = grid_coord
 
+  def handle_left_release(self, event, particle):
+    '''Determine if a left mouse event is click or drag, then call the right handle func'''
+    self.focus_set()
+    x = self.canvasx(event.x)
+    y = self.canvasy(event.y)
+    print "Release: " + str((x,y))
+    new_coord = self.canvas_grid.pixel_to_grid_coord((x,y), self.cur_diameter())
+    old_coord = self.left_press_coord
+    if new_coord[0] == old_coord[0] and new_coord[1] == old_coord[1]:
+      self.handle_left_click(event, particle)
+    else:
+      self.handle_left_drag(event, old_coord, new_coord)
+    self.left_press_coord = None
 
   def handle_left_click(self, event, particle):
     self.focus_set()
@@ -292,6 +304,24 @@ class Model(tk.Canvas):
     self.apply_brush(brush, self.selected_particles)
     self.update_grid_size()
     self.redraw_particles(dirty)
+
+  def handle_left_drag(self, event, old_coord, new_coord):
+    ''' left drag is move, with initial and final mouse position as base/ref point'''
+    self.focus_set()
+    bp = self.grid_coord_to_particle[old_coord] 
+    rp = self.grid_coord_to_particle[new_coord]
+    # perform a copy if command is held, perform a move by default
+    if self.selected_particles:
+      if event.state & MOD_LEFTALT:
+        operation = Operation.Copy(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()}, 
+            operation_box=self.master.master.options_box.operation_box)
+      else:
+        operation = Operation.Move(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()}, 
+            operation_box=self.master.master.options_box.operation_box)
+
+      self.current_operation = operation
+      operation.fill_cache([bp])
+      operation.paste([rp])
 
   def generate_snapshot(self, width, height):
     diameter = self.cur_diameter()
@@ -324,7 +354,7 @@ class Model(tk.Canvas):
     body = particle.body_specs
     buddies = []
     for ite in self.particles:
-      if ite.body_specs == body: 
+      if ite.body_specs == body and ite.present: 
         buddies.append(ite)
     return buddies
 
@@ -354,12 +384,6 @@ class Model(tk.Canvas):
       self.current_operation = Operation.Copy(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected()}, 
         operation_box=self.master.master.options_box.operation_box) 
 
-  def handle_cmds(self, event):
-    print "Pressed S"
-    if self.selected_particles:
-      self.current_operation = Operation.Group_Set(model=self, cache={'selected':self.selected_particles, 'not_selected':self.not_selected(), 'old_brush':self.get_brush()},
-        operation_box=self.master.master.options_box.operation_box) 
-
   def handle_cmdv(self, event):
     print "Pressed V"
     single_par_selected = len(self.selected_particles) == 1
@@ -373,8 +397,10 @@ class Model(tk.Canvas):
       self.current_operation.fill_cache(self.selected_particles)
   
 ###########
-  def set_particles_paste(self, particles):
+  def set_particles_paste(self, particles, invisible_list):
+    '''invisible_list solves the problem of some not present particles will also need to be copied'''
     # self.apply_brush(self.default_brush, self.model_particles)
+    # for p in self.model_particles:  p.present = False
     for p in self.model_particles:  p.present = False
 
     dirty = []
@@ -383,15 +409,20 @@ class Model(tk.Canvas):
 
     self.model_particles.clear()
     self.selected_particles.clear()
-
+    
     for new_p in particles:
       if new_p.grid_coord not in self.grid_coord_to_particle:
         self.add_new_particle(new_p.grid_coord)
       old_p = self.grid_coord_to_particle[new_p.grid_coord]
       old_p.particle_specs = new_p.particle_specs
       old_p.body_specs = new_p.body_specs
-      old_p.present = True
-      self.model_particles.add(old_p)
+      # old_p.present = True
+      # not to draw the non-present particles
+      old_p.present = False
+      # set present attribute correctly
+      if new_p.grid_coord not in invisible_list:
+        old_p.present = True
+        self.model_particles.add(old_p)
 
     dirty.extend(self.model_particles)
     self.redraw_particles(dirty)
@@ -507,8 +538,6 @@ class SquareGrid(object):
     pix_min_x, pix_min_y = self.grid_coord_to_pixel((self.min_x, self.min_y), cell_diameter)
     pix_max_x, pix_max_y = self.grid_coord_to_pixel((self.get_max_x(), self.get_max_y()), cell_diameter)
     return (pix_min_x, pix_min_y, pix_max_x, pix_max_y)
-
-
 
 class Particle(object):
   grid_coord = None

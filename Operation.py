@@ -70,6 +70,7 @@ class Operation(object):
     print "rp:" + str(rp.grid_coord)
 
     for par in self.cache['selected']:
+      # if par.present:
       new_par = par.copy()
       new_par.particle_specs = par.particle_specs
       # new_par = par
@@ -80,9 +81,25 @@ class Operation(object):
     self.cache['selected_after_op'].extend(self.cache['not_selected'])
     if self._copy:
       self.cache['selected_after_op'].extend(self.cache['selected'])
+    else:
+      for p in self.cache['selected']:
+        p.present = False
+      self.cache['selected_after_op'].extend(self.cache['selected'])
 
-    self.model.set_particles_paste(self.cache['selected_after_op'])
+    invisible_list = self.invisible_list_generate()
+    self.model.set_particles_paste(self.cache['selected_after_op'], invisible_list)
     self.cancel(completed=True)
+
+  def invisible_list_generate(self):
+    invisible_list = []
+    for par in self.cache['selected_after_op']:
+      if par.present is False:
+        invisible_list.append(par.grid_coord)
+    if self._copy:
+      for par in self.cache['selected']:
+        if par.present is False:
+          invisible_list.append(par.grid_coord)
+    return invisible_list
 
   def report_status(self):
     ''' Communicate with operation_box to help you know your next step from GUI'''
@@ -92,7 +109,7 @@ class Operation(object):
     else:
       self.var_cache.set("Choose your new reference point and <LeftCommand+V>")
 
-  # below are specific operation functions called by paste
+# below are specific operation functions called by paste
   def operate_rotate_ccw(self, par, x0, y0):
     # x0, y0 are the x/y grid_coord for basepoint(bp)
     x,y = par.grid_coord[0] , par.grid_coord[1]
@@ -120,7 +137,7 @@ class Rotate_ccw(Operation):
 
 class Move(Operation):
   def __init__(self, model , cache, operation_box): 
-    super(Copy, self).__init__(model=model , cache=cache, cache_field=['base_point'], operation_box=operation_box)
+    super(Move, self).__init__(model=model , cache=cache, cache_field=['base_point'], operation_box=operation_box)
     self.operate_func = self.operate_copy
     self._copy = False
     self._name = "Move"
@@ -162,13 +179,10 @@ class Group_Set(Operation):
 
   def paste(self):
     ''' This overides the BASE paste function to provide change directly to selected particles while not making copies'''
-
     # check all needed cache_fields have been collected
     if self._cache_field_needed:
-      print "Sorry. %s is missing for this task" % self._cache_field_needed.pop()
-      self.cancel()    
+      self.cancel("Sorry. %s is missing for this task" % self._cache_field_needed.pop())    
     specs = self._get_brush_change()
-
     self.cache['selected_after_op'] = []
 
     for par in self.cache['selected']:
@@ -179,8 +193,12 @@ class Group_Set(Operation):
     self.cache['selected_after_op'].extend(self.cache['not_selected'])
     if self._copy:
       self.cache['selected_after_op'].extend(self.cache['selected'])
+    else:
+      for p in self.cache['selected']:
+        p.present = False
+      self.cache['selected_after_op'].extend(self.cache['selected'])
 
-    self.model.set_particles_paste(self.cache['selected_after_op'])
+    self.model.set_particles_paste(self.cache['selected_after_op'], [])
     self.cancel(completed=True)
 
 

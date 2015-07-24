@@ -25,6 +25,9 @@ class OptionsBox(tk.Frame):
 
   brush_change_callbacks = None
   model_change_callbacks = None
+
+  prev_brush = None
+
   def __init__(self, master, model_func=None, export_func=None, import_func=None):
     tk.Frame.__init__(self, master)
 
@@ -36,10 +39,8 @@ class OptionsBox(tk.Frame):
 
     self.models_box = ModelsBox(master = self,
         model_func = model_func, callback = self.trigger_model_change)
-
     self.tool_box = ToolBox(master = self, callback = self.trigger_brush_change)
     self.add_brush_change_callback(self.tool_box.update_buttons)
-
     self.edit_box = BrushEditorBox(master = self,
         brush_func = self.get_brush, callback = self.trigger_brush_change)
     self.add_brush_change_callback(self.edit_box.update_fields)
@@ -56,7 +57,8 @@ class OptionsBox(tk.Frame):
     self.edit_box.grid(sticky = sticky_all)
     self.io_box.grid(sticky = sticky_all)
     self.operation_box.grid(sticky = sticky_all)
-
+    
+    self.prev_brush = self.get_brush()
     self.trigger_brush_change()
 
   def get_default_brush(self):
@@ -90,18 +92,22 @@ class OptionsBox(tk.Frame):
   def watchdog_group_set(self):
     '''This is added to the brush_change_callback, the watchdog that will enable group_set to detect brush change'''
     # This ugly try is to surpass the first brush_change_callback when initializing the app
+    
     try:
-      curr_op = self.models_box.get_model().current_operation
-      brush = self.get_model().get_brush()
+      model = self.models_box.get_model()
+      if model.selected_particles:
+        model.current_operation = Group_Set(model=model, cache={'selected':model.selected_particles, 'not_selected':model.not_selected(), 'old_brush':self.prev_brush},
+          operation_box=self.operation_box) 
+      curr_op = model.current_operation
+      brush = model.get_brush()
       brush_not_empty = (brush.particle_specs) and (brush.body_specs)
-      # fill the cache with new brush specs, and check that the new brush spec must not be empty
+      # fill the cache with new brush specs, and if new brush spec has an empty entry, wait for the next valid input
       if isinstance (curr_op, Group_Set) and brush_not_empty:
         curr_op.fill_cache(brush)
         curr_op.paste()
       elif isinstance (curr_op, Group_Set) and not brush_not_empty:
-        print "can't delete in this way, please try normal way to delete"
-        curr_op.cancel()
-
+        pass
+      self.prev_brush = self.get_brush()
     except IndexError:
       pass
 
