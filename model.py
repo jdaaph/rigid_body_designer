@@ -79,6 +79,7 @@ class Model(tk.Canvas):
     self.bind('<Command-m>', self.handle_cmdm)
     self.bind('<Command-c>', self.handle_cmdc)
     self.bind('<Return>', self.handle_enter)
+    self.bind('<BackSpace>', self.handle_backspace)
 
   @property
   def particles(self):
@@ -395,7 +396,19 @@ class Model(tk.Canvas):
     single_par_selected = len(self.selected_particles) == 1
     if single_par_selected and self.current_operation:
       self.current_operation.fill_cache(self.selected_particles)
-  
+
+  def handle_backspace(self, event):
+    if self.selected_particles:
+      selected = list(self.selected_particles)
+      for par in selected:
+        par.present = False
+        self.model_particles.remove(par)
+        par.particle_specs = self.default_brush.particle_specs
+        par.body_specs = self.default_brush.body_specs
+
+      self.redraw_particles(selected)
+      self.selected_particles.clear()
+
 ###########
   def set_particles_paste(self, particles, invisible_list):
     '''invisible_list solves the problem of some not present particles will also need to be copied'''
