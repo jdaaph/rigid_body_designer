@@ -50,8 +50,8 @@ class Application(tk.Frame):
     self.quitButton.grid(column = 0, row = 1, columnspan = 1, sticky = sticky_all)
 
   def make_new_model(self):
-    model = Model(self.design_box, self.options_box.get_brush, self.options_box.get_default_brush())
-    self.options_box.add_brush_change_callback(model.redraw_brush_change)
+    model = Model()
+    ##self.options_box.add_brush_change_callback(model.redraw_brush_change)
     return model
   def update_design_box(self):
     model = self.options_box.get_model()
