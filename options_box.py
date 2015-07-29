@@ -238,18 +238,18 @@ class ModelsBox(tk.Frame):
 
         self.thumbnail = ModelCanvas(self, show_blanks = False)
         self.thumbnail.configure(width = 100, height = 100)
-        self.thumbnail.set_model(model)
+        self.thumbnail.model = model
         self.thumbnail.grid(row = 0, column = 0, sticky = sticky_all)
 
         self.copies_entry = tk.Entry(self, textvariable = self.copies_var)
         self.copies_entry.grid(row = 0, column = 1, sticky = tk.E + tk.W)
 
       def update_thumbnail(self):
-        bbox = self.thumbnail.model_bbox()
+        bbox = self.thumbnail.model_bbox
         if bbox != None:
           zoom = min(self.thumbnail.winfo_width()/float(bbox[2] - bbox[0]), self.thumbnail.winfo_height()/float(bbox[3] - bbox[1])) 
-          self.thumbnail.set_zoom(self.thumbnail.zoom * zoom) 
-        self.thumbnail.redraw_particles(self.thumbnail.points_iterator())
+          self.thumbnail.zoom = self.thumbnail.zoom * zoom
+        self.thumbnail.update(update_all = True)
 
 
 class ToolBox(tk.Frame):

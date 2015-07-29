@@ -31,4 +31,4 @@ class DesignBox(tk.Frame):
     self.canvas.config(xscrollcommand = self.xscrollbar.set, yscrollcommand = self.yscrollbar.set)
 
   def switch_model(self, model):
-    self.canvas.set_model(model)
+    self.canvas.model = model

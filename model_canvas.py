@@ -51,7 +51,7 @@ class ModelCanvas(tk.Canvas):
   _gridcoord_to_oval = None
   _drawn_bbox = None
 
-  _base_diameter = 20.0 ## diameter of spheres, in unzoomed distance units (pixels?)
+  _diameter = 20.0 ## diameter of spheres, in unzoomed distance units (pixels?)
   _zoom = 1.0 ## Zoom level (1 = no zoom)
   _show_blank_particles = True
 
@@ -177,7 +177,7 @@ class ModelCanvas(tk.Canvas):
   @property
   def selection(self):
     return frozenset(self._selection)
-  @selection.setter:
+  @selection.setter
   def selection(self, selection):
     self._dirty |= self._selection ^ selection
     self._selection = selection
@@ -226,7 +226,7 @@ class ModelCanvas(tk.Canvas):
 
   def points_iterator(self):
     """ Returns an iterator over all points currently in the canvas/model's scrollable bounding box."""
-    box = self.model.grid.pixel_to_grid_coord_bbox(self.scrollable_bbox(), self.cur_diameter())
+    box = self.model.grid.pixel_to_grid_coord_bbox(self.scrollable_bbox, self.diameter)
     return self.model.grid.points_iterator(box)
 
 
@@ -320,7 +320,7 @@ class ModelCanvas(tk.Canvas):
   def handle_right_drag(self, event):
     x = self.canvasx(event.x)
     y = self.canvasy(event.y)
-    gridcoord = self.model.grid.pixel_to_grid_coord((x,y), self.cur_diameter())
+    gridcoord = self.model.grid.pixel_to_grid_coord((x,y), self.diameter)
     self.handle_right_click(event, gridcoord)
   def handle_right_click(self, event, gridcoord):
     def normal_click():
