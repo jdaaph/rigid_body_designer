@@ -106,7 +106,7 @@ class Model(object):
     if self.has_particle(grid_coord):
       self.grid_coord_to_particle[grid_coord].body_specs = body_specs
 
-  def calc_connected_particles(self, grid_coord):
+  def calc_connected_body_particles(self, grid_coord):
     '''returns a list of particles in the same body as particle'''
     body = particle.body_specs
     buddies = []

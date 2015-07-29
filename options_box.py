@@ -236,7 +236,7 @@ class ModelsBox(tk.Frame):
 
         self.columnconfigure(1, weight = 1)
 
-        self.thumbnail = ModelCanvas(self)
+        self.thumbnail = ModelCanvas(self, show_blanks = False)
         self.thumbnail.configure(width = 100, height = 100)
         self.thumbnail.set_model(model)
         self.thumbnail.grid(row = 0, column = 0, sticky = sticky_all)

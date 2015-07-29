@@ -17,10 +17,10 @@ MOD_BTN1 = 0x100
 MOD_LEFTALT = 0x0008  
 
 def box_contains_box(box1, box2):
-  return (box1[0] < box2[0] < box1[2]
-      and box1[0] < box2[2] < box1[2]
-      and box1[1] < box2[1] < box1[3]
-      and box1[1] < box2[3] < box1[3])
+  return (box1[0] <= box2[0] <= box1[2]
+      and box1[0] <= box2[2] <= box1[2]
+      and box1[1] <= box2[1] <= box1[3]
+      and box1[1] <= box2[3] <= box1[3])
 def box_union(box1, box2):
   return (min(box1[0], box2[0]), min(box1[1], box2[1]),
           max(box1[2], box2[2]), max(box1[3], box2[3]))
@@ -45,46 +45,59 @@ class ModelCanvas(tk.Canvas):
     - lists of all grid coordinates within a given bounding box (including those without a corresponding particle) 
   """
 
-  model = None
+  _model = None
 
-  selection = None
+  _oval_to_gridcoord = None
+  _gridcoord_to_oval = None
+  _drawn_bbox = None
 
-  dirty = None
+  _base_diameter = 20.0 ## diameter of spheres, in unzoomed distance units (pixels?)
+  _zoom = 1.0 ## Zoom level (1 = no zoom)
+  _show_blank_particles = True
 
-  oval_id_to_grid_coord = None
-  grid_coord_to_oval_id = None
-  grid_coord_bbox = None
+  _dirty = None
 
-  cur_brush = None
+  _selection = None
 
-  diameter = 20 ## diameter of spheres, in unzoomed distance units (pixels?)
-  zoom = 1.0 ## Zoom level (1 = no zoom)
+  _brush = None
 
-  current_operation = None
+  # current_operation = None
   # left_press_coord records where the left mouse btn has been pressed, this would determine if an action is a click or drag
-  left_press_coord = None
+  # left_press_coord = None
 
-  def __init__(self, master):
-    tk.Canvas.__init__(self, master, bd = 0, highlightthickness = 0, takefocus = 0)
+  def __init__(self, master, show_blanks = True, **kargs):
+    tk.Canvas.__init__(self, master, bd = 0, highlightthickness = 0, **kargs)
 
-    ## Initialize to empty selection
-    self.selection = set([])
 
-    ## Initialize list of grid coordinates needing updating
-    self.dirty = []
-
-    ## Draw spheres on canvas for the first time
-    self.oval_id_to_grid_coord = dict()
-    self.grid_coord_to_oval_id = dict()
-
-    ## Handle edit operations
-    self.current_operation = None
-
-    ## Initialize to erasing brush
-    self.cur_brush = None
+    ## Set up display functionality
     
+    # Set up dicts that map between drawn ovals and grid coordinates
+    self._oval_to_gridcoord = dict()
+    self._gridcoord_to_oval = dict()
+
+    # Set initial scroll region
+    self['scrollregion'] = (0, 0, 0, 0)
+    self._drawn_bbox = self.scrollable_bbox
+
+    # Flags for drawing
+    self._show_blank_particles = show_blanks
+
+    # Initialize list of grid coordinates needing updating
+    self._dirty = set([])
+
+
+    ## Set up edit functionality
+
+    # Initialize to empty selection
+    self._selection = set([])
+
+    # Initialize to erasing brush
+    self._brush = None
+
+
     ## Add basic event handlers
     self.bind('<Configure>', self.handle_resize)
+    self.bind_all('<<Brush>>', self.handle_brush_event)
     # self.bind('<Command-r>', self.handle_cmdr)
     # self.bind('<Command-v>', self.handle_cmdv)
     # self.bind('<Command-m>', self.handle_cmdm)
@@ -92,152 +105,239 @@ class ModelCanvas(tk.Canvas):
     # self.bind('<Return>', self.handle_enter)
     # self.bind('<BackSpace>', self.handle_backspace)
 
-  def set_model(self, model):
-    self.model = model
-    self.dirty = list(self.points_iterator())
+
+  #### General canvas properties
+
+  @property
+  def model(self):
+    return self._model
+  @model.setter
+  def model(self, model):
+    self._model = model
+    self._dirty = set(self.points_iterator())
+    self.update()
+
+
+  #### Model displaying properties
+  
+  ## General
+
+  @property
+  def zoom(self):
+    return self._zoom
+  @zoom.setter
+  def zoom(self, zoom):
+    self._zoom = zoom
+    self._dirty = set(self.points_iterator())  
+
+  @property
+  def diameter(self):
+    """ TODO: Make 'diameter' a property of Model or Particle objects """
+    return self._diameter * self._zoom
+
+  @property
+  def show_blank_particles(self):
+    return self._show_blank_particles
+  @show_blank_particles.setter
+  def show_blank_particles(self, show_blanks):
+    self._show_blank_particles = show_blanks
+    self._dirty |= set(self.points_iterator()) - set(self._model.points_iterator())
+
+  ## Screen display info
+  # Note: drawn >= scrollable >= model, visible
+  @property
+  def drawn_bbox(self):
+    """ Returns the canvas region for which particles have been drawn. """
+    return self._drawn_bbox
+  @property
+  def scrollable_bbox(self):
+    """ Returns the bounding box covering the currently scrollable region of canvas. """
+    return [float(v) for v in self['scrollregion'].split(' ')]
+  @property
+  def model_bbox(self):
+    """ Returns the bounding box for the model + padding. """
+    return self.model.grid.grid_coord_to_pixel_bbox(self.model.calc_bbox(), self.diameter)
+  @property
+  def visible_bbox(self):
+    """ Returns the bounding box for the canvas's currently visible area. """
+    topleft = (self.canvasx(0), self.canvasy(0))
+    dims = (self.winfo_width(), self.winfo_height())
+    return (topleft[0], topleft[1], topleft[0] + dims[0], topleft[1] + dims[1])
+
+
+  #### Model editing properties
+
+  @property
+  def brush(self):
+    return self._brush
+  @brush.setter
+  def brush(self, brush):
+    self._brush = brush
+
+  @property
+  def selection(self):
+    return frozenset(self._selection)
+  @selection.setter:
+  def selection(self, selection):
+    self._dirty |= self._selection ^ selection
+    self._selection = selection
+
+
+  #### Display functionality
+
+  def update(self, update_all = False):
+    """ Force updates for canvas components, including:
+      - Checking for new particles to draw
+      - Redrawing changed particles (if update_all is set, then redraw all particles)
+      - Updating canvas scrolling region
+    """
+    ## Update scroll region to include viewable area and model
     self.update_scrollregion()
-    self.redraw_particles()
+
+    ## Update particle information
+    self.update_particles(update_all)
 
   def update_scrollregion(self):
     """ Resize the canvas scrollregion to make sure the entire model is viewable. """
     ## If there are any points in the model, make sure the scrollable region covers the entire model
     ## Add scrolling if screen is too small.
-    canvas_box = self.canvas_bbox()
-    model_box = self.model_bbox()
-    if model_box != None and not box_contains_box(canvas_box, model_box):
-      old_box = [float(v) for v in self["scrollregion"].split(" ")]
-      if not box_contains_box(old_box, model_box):
-        self["scrollregion"] = box_union(model_box, canvas_box)
-    else:
-      self["scrollregion"] = (0, 0, 0, 0)
-    self.add_new_particles()
-
-  def set_zoom(self, new_zoom):
-    self.zoom = new_zoom
-    self.update_scrollregion()
-    self.redraw_particles()
-
-  def add_new_particle(self, grid_coord):
-    oval_id = self.create_oval(0, 0, 0, 0, tags = 'particle', state = tk.HIDDEN)
-
-    self.tag_bind(oval_id, "<ButtonPress-1>", lambda e: self.handle_left_press(e))
-    self.tag_bind(oval_id, "<ButtonRelease-1>", lambda e, c=grid_coord: self.handle_left_release(e, c))
-
-    self.tag_bind(oval_id, "<Button-2>", lambda e,c=grid_coord: self.handle_right_click(e, c))
-    self.tag_bind(oval_id, "<B2-Motion>", self.handle_right_drag)
-
-    self.oval_id_to_grid_coord[oval_id] = grid_coord
-    self.grid_coord_to_oval_id[grid_coord] = oval_id
-
-  def add_new_particles(self):
-    for grid_coord in self.points_iterator():
-      if grid_coord not in self.grid_coord_to_oval_id:
-        self.add_new_particle(grid_coord)
-        self.dirty.append(grid_coord)
-
-  def redraw_particle(self, grid_coord):
-    """ Updates the location/size of the single given particle on the canvas.
-    TODO: This might be easier/more elegant if we used tags. """
-    diameter = self.cur_diameter()
-    canvas_x0, canvas_y0 = self.model.grid.grid_coord_to_pixel(grid_coord, diameter)
-    canvas_x1 = canvas_x0 + diameter
-    canvas_y1 = canvas_y0 + diameter
-
-    oval_id = self.grid_coord_to_oval_id[grid_coord]
-    self.coords(oval_id, canvas_x0, canvas_y0, canvas_x1, canvas_y1)
-
-    particle_specs = self.model.get_particle_type(grid_coord)
-    body_specs = self.model.get_body_type(grid_coord)
-
-    fill = particle_specs.color if particle_specs != None else '#CCC'
-    outline = body_specs.color if body_specs != None else '#999'
-    width = 4 if grid_coord in self.selection else 2
-
-    self.itemconfigure(oval_id, fill = fill, outline = outline, width = width, state = tk.NORMAL)
-    if grid_coord in self.selection:  self.tag_raise(oval_id, 'particle')
-  
-  def redraw_particles(self, dirty = None):
-    """ Update the locations/sizes of particles in the iterable dirty.
-    Use add_new_particles() to draw particles for the first time on the canvas. """
-    if dirty == None:
-      dirty = self.dirty
-      self.dirty = []
-
-    for grid_coord in dirty:
-      self.redraw_particle(grid_coord)
-
-  def set_selection(self, new_selection):
-    self.dirty.append(self.selection ^ set(new_selection))
-    self.selection = new_selection
-
-  def apply_brush(self, brush, grid_coords):
-    """ Set the particles corresponding to the given grid coordinates to have
-    the particle and/or body type specified by the brush. """
-    erase = brush == None
-    create = brush.particle_specs != None or brush.body_specs != None
-    modify = not erase and not create
-    for grid_coord in grid_coords:
-      if erase:
-        self.model.remove_particle(grid_coord)
-      elif (create or modify) and self.model.has_particle(grid_coord):
-        if brush.particle_specs != None:  self.model.set_particle_specs(grid_coord, brush.particle_specs)
-        if brush.body_specs != None:  self.model.set_body_specs(grid_coord, brush.body_specs)
-      elif create and not self.model.has_particle(grid_coord):
-        self.model.add_particle(grid_coord, brush.particle_specs, brush.body_specs)
-
-    ### TODO: Emit model-changed event
-
-  def canvas_bbox(self):
-    """ Returns the bounding box for the canvas's currently viewable area. """
-    topleft = (self.canvasx(0), self.canvasy(0))
-    dims = (self.winfo_width(), self.winfo_height())
-    return (topleft[0], topleft[1], topleft[0] + dims[0], topleft[1] + dims[1])
-  def model_bbox(self):
-    """ Returns the bounding box for the model + padding. """
-    return self.model.grid.grid_coord_to_pixel_bbox(self.model.calc_bbox(), self.cur_diameter())
-  def scrollable_bbox(self):
-    """ Returns the bounding box consisting of the union of the canvas's currently viewable area
-    and the model's bounding box + padding. """
-    canvas_box = self.canvas_bbox()
-    model_box = self.model_bbox()
+    visible_box = self.visible_bbox
+    model_box = self.model_bbox
     if model_box != None:
-      return box_union(canvas_box, model_box)
+      self['scrollregion'] = box_union(visible_box, model_box)
     else:
-      return canvas_box
+      self['scrollregion'] = visible_box
+
+  def update_particles(self, update_all = False):
+    """ Add new particles to canvas and update for any changes since last update. """
+    ## Add new ovals to canvas, if necessary
+    if update_all or not box_contains_box(self.drawn_bbox, self.scrollable_bbox):
+      self._add_particles()
+
+    ## Update locations/colors of particles on canvas
+    if update_all:
+      self._redraw_particles(self.points_iterator())
+      self._dirty.clear()
+    else:
+      self._redraw_particles()
+
+
+  #### Misc functionality
 
   def points_iterator(self):
     """ Returns an iterator over all points currently in the canvas/model's scrollable bounding box."""
     box = self.model.grid.pixel_to_grid_coord_bbox(self.scrollable_bbox(), self.cur_diameter())
     return self.model.grid.points_iterator(box)
 
-  def cur_diameter(self):
-    return self.diameter * self.zoom
+
+  #### Private member functions. Don't mess with these unless you know what you're doing.
+
+  def _add_particle(self, gridcoord):
+    """ Add a single new oval to the canvas at the particular grid coordinate. """
+    oval_id = self.create_oval(0, 0, 0, 0, tags = 'particle', state = tk.HIDDEN)
+
+    self.tag_bind(oval_id, "<ButtonPress-1>", lambda e: self.handle_left_press(e))
+    self.tag_bind(oval_id, "<ButtonRelease-1>", lambda e, c=gridcoord: self.handle_left_release(e, c))
+
+    self.tag_bind(oval_id, "<Button-2>", lambda e,c=gridcoord: self.handle_right_click(e, c))
+    self.tag_bind(oval_id, "<B2-Motion>", self.handle_right_drag)
+
+    self._oval_to_gridcoord[oval_id] = gridcoord
+    self._gridcoord_to_oval[gridcoord] = oval_id
+
+  def _add_particles(self):
+    """ Check that all grid coords in the scrollable region are drawn on the canvas,
+    adding any new ones, if necessary. The drawn_bbox variable is updated. """
+    for gridcoord in self.points_iterator():
+      if gridcoord not in self._gridcoord_to_oval:
+        self._add_particle(gridcoord)
+        self._dirty.add(gridcoord)
+    self._drawn_bbox = box_union(self.drawn_bbox, self.scrollable_bbox)
+
+  def _redraw_particle(self, gridcoord):
+    """ Updates the location/size of the single given particle on the canvas.
+    TODO: This might be easier/more elegant if we used tags. """
+    diameter = self.diameter
+    canvas_x0, canvas_y0 = self.model.grid.grid_coord_to_pixel(gridcoord, diameter)
+    canvas_x1 = canvas_x0 + diameter
+    canvas_y1 = canvas_y0 + diameter
+
+    oval_id = self._gridcoord_to_oval[gridcoord]
+    self.coords(oval_id, canvas_x0, canvas_y0, canvas_x1, canvas_y1)
+    
+    in_model = self.model.has_particle(gridcoord)
+    in_selection = gridcoord in self.selection
+    hidden = not in_model and not self.show_blank_particles
+
+    particle_specs = self.model.get_particle_type(gridcoord)
+    body_specs = self.model.get_body_type(gridcoord)
+
+    state = tk.HIDDEN if hidden else tk.NORMAL
+    fill = particle_specs.color if in_model else '#CCC'
+    outline = body_specs.color if in_model else '#999'
+    width = 4 if in_selection else 2
+
+    self.itemconfigure(oval_id, fill = fill, outline = outline, width = width, state = state)
+    if in_selection:  self.tag_raise(oval_id, 'particle')
+  
+  def _redraw_particles(self, dirty = None):
+    """ Update the locations/sizes of particles in the iterable dirty.
+    Use _add_particles() to draw particles for the first time on the canvas. """
+    if dirty == None:
+      dirty = self._dirty
+      self._dirty.clear()
+
+    for gridcoord in dirty:
+      self._redraw_particle(gridcoord)
+
+  def _apply_brush(self, brush, gridcoords):
+    """ Set the particles corresponding to the given grid coordinates to have
+    the particle and/or body type specified by the brush. """
+    erase = brush == None
+    create = brush.particle_specs != None or brush.body_specs != None
+    modify = not erase and not create
+    for gridcoord in gridcoords:
+      if erase:
+        self.model.remove_particle(gridcoord)
+      elif (create or modify) and self.model.has_particle(gridcoord):
+        if brush.particle_specs != None:  self.model.set_particle_specs(gridcoord, brush.particle_specs)
+        if brush.body_specs != None:  self.model.set_body_specs(gridcoord, brush.body_specs)
+      elif create and not self.model.has_particle(gridcoord):
+        self.model.add_particle(gridcoord, brush.particle_specs, brush.body_specs)
+
+    ### Emit model-changed event
+    self.event_generate('<<Model>>')
+
+
+  #### Event handlers
+
+  def handle_brush_event(self, event):
+    print "*", dir(event)
 
   def handle_resize(self, event):
-    self.update_scrollregion()
-    self.redraw_particles()
+    self.update(update_all = True)
 
   def handle_right_drag(self, event):
     x = self.canvasx(event.x)
     y = self.canvasy(event.y)
-    grid_coord = self.model.grid.pixel_to_grid_coord((x,y), self.cur_diameter())
-    self.handle_right_click(event, grid_coord)
-  def handle_right_click(self, event, grid_coord):
+    gridcoord = self.model.grid.pixel_to_grid_coord((x,y), self.cur_diameter())
+    self.handle_right_click(event, gridcoord)
+  def handle_right_click(self, event, gridcoord):
     def normal_click():
-      self.set_selection(set([grid_coord]))
+      self.selection = set([gridcoord])
     def shift_click():
-      if grid_coord in self.selection:
+      if gridcoord in self._selection:
         return
-      box = self.model.grid.calc_bbox(list(self.selection) + [grid_coord])
-      self.set_selection(set([self.model.grid.points_iterator(box)]))
+      box = self.model.grid.calc_bbox(list(self._selection) + [gridcoord])
+      self.selection = set(self.model.grid.points_iterator(box))
     def ctrl_click():
-      if grid_coord in self.selection:
-        self.set_selection(self.selection - set([grid_coord]))
+      if gridcoord in self._selection:
+        self.selection = self._selection - set([gridcoord])
       else:
-        self.set_selection(self.selection | set([grid_coord]))
+        self.selection = self._selection | set([gridcoord])
     def leftalt_click():
-      body_coords = self.model.calc_contiguous_body_coords(grid_coord)
-      self.set_selection(set(body_coords))
+      body_coords = self.model.calc_connected_body_particles(gridcoord)
+      self.selection = set(body_coords)
 
     if event.state & MOD_SHIFT:
       shift_click()
@@ -247,7 +347,7 @@ class ModelCanvas(tk.Canvas):
       leftalt_click()
     else:
       normal_click()
-    self.redraw_particles()
+    self._redraw_particles()
 
   # def handle_left_press(self, event):
   #   self.focus_set()
@@ -272,13 +372,14 @@ class ModelCanvas(tk.Canvas):
   #   self.left_press_coord = None
 
   def handle_left_click(self, event, grid_coord):
-    brush = self.cur_brush
-    if grid_coord not in self.selection:
-      self.set_selection(set([grid_coord]))
+    brush = self._brush
+    selection = self._selection
+    if gridcoord not in selection:
+      self.selection = set([gridcoord])
 
-    self.apply_brush(brush, self.selection)
-    self.update_scrollregion()
-    self.redraw_particles()
+    self._apply_brush(brush, selection)
+    self.update()
+
 
   # def handle_left_drag(self, event, old_coord, new_coord):
   #   ''' left drag is move, with initial and final mouse position as base/ref point'''
@@ -298,43 +399,43 @@ class ModelCanvas(tk.Canvas):
   #     operation.fill_cache([bp])
   #     operation.paste([rp])
 
-  def generate_snapshot(self, width, height):
-    diameter = self.cur_diameter()
-    box = self.model.grid.grid_coord_to_pixel_bbox(self.model_bbox(), diameter)
+  # def generate_snapshot(self, width, height):
+  #   diameter = self.cur_diameter()
+  #   box = self.model.grid.grid_coord_to_pixel_bbox(self.model_bbox(), diameter)
 
-    snapshot = tk.Canvas(None, highlightthickness = 0, bg = '#CCCCCC')
-    if box == None:
-      return snapshot
+  #   snapshot = tk.Canvas(None, highlightthickness = 0, bg = '#CCCCCC')
+  #   if box == None:
+  #     return snapshot
 
-    min_x, min_y, max_x, max_y = [int(v) for v in box]
+  #   min_x, min_y, max_x, max_y = [int(v) for v in box]
 
-    print box
-    scale = min(float(height) / (max_y - min_y), float(width) / (max_x - min_x))
-    print width, height, scale
+  #   print box
+  #   scale = min(float(height) / (max_y - min_y), float(width) / (max_x - min_x))
+  #   print width, height, scale
 
-    for grid_coord in self.model.points_iterator():
-      x0, y0 = self.model.grid.grid_coord_to_pixel(grid_coord, diameter)
-      x0 -= min_x
-      y0 -= min_y
-      x1 = x0 + diameter
-      y1 = y0 + diameter
-      particle_color = self.model.get_particle_type(grid_coord).color
-      body_color = self.model.get_body_type(grid_coord).color
-      snapshot.create_oval(x0, y0, x1, y1, tags='all', fill = particle_color, outline = body_color, width = 1)
-    snapshot.scale('all', 0, 0, scale, scale)
+  #   for grid_coord in self.model.points_iterator():
+  #     x0, y0 = self.model.grid.grid_coord_to_pixel(grid_coord, diameter)
+  #     x0 -= min_x
+  #     y0 -= min_y
+  #     x1 = x0 + diameter
+  #     y1 = y0 + diameter
+  #     particle_color = self.model.get_particle_type(grid_coord).color
+  #     body_color = self.model.get_body_type(grid_coord).color
+  #     snapshot.create_oval(x0, y0, x1, y1, tags='all', fill = particle_color, outline = body_color, width = 1)
+  #   snapshot.scale('all', 0, 0, scale, scale)
     
-    return snapshot
+  #   return snapshot
 
   # new library begins
-  def calc_contiguous_body_coords(self, grid_coord):
-    '''returns a list of particles in the same body as particle.
-    TODO: Only return coordinates contiguous to the given coordinate'''
-    body = self.model.get_body_type(grid_coord)
-    buddies = []
-    for ite in self.particles:
-      if ite.body_specs == body and ite.present: 
-        buddies.append(ite)
-    return buddies
+  # def calc_contiguous_body_coords(self, grid_coord):
+  #   '''returns a list of particles in the same body as particle.
+  #   TODO: Only return coordinates contiguous to the given coordinate'''
+  #   body = self.model.get_body_type(grid_coord)
+  #   buddies = []
+  #   for ite in self.particles:
+  #     if ite.body_specs == body and ite.present: 
+  #       buddies.append(ite)
+  #   return buddies
 
   # def not_selected(self):
   #   not_selected = []
