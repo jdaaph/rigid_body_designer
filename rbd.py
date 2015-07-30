@@ -19,6 +19,11 @@ sticky_all = tk.N + tk.S + tk.W + tk.E
 #  <<ModelSelect>>    new model selected for editing
 # Bind a widget to these events just as you would an ordinary event:
 #  widget.bind('<<Brush>>', handler_function)
+#
+# Make Application query-able for global model-editing properties
+#   get_brush()
+#   get_current_model()
+#   get_models()
 
 class Application(tk.Frame):
   design_box = None
@@ -32,8 +37,10 @@ class Application(tk.Frame):
 
     self.layoutWidgets()
 
+    self.event_generate('<<Brush>>')
+
   def initWidgets(self):
-    self.design_box = DesignBox(self)
+    self.design_box = DesignBox(self, brush_func = self.get_brush)
     self.options_box = OptionsBox(self, self.make_new_model, self.export_data, self.import_data)
     self.quitButton = tk.Button(self, text='Quit', command=self.quit)
 
@@ -58,6 +65,18 @@ class Application(tk.Frame):
     self.design_box.grid(column = 0, row = 0, sticky = sticky_all)
     self.options_box.grid(column = 1, row = 0, sticky = sticky_all)
     self.quitButton.grid(column = 0, row = 1, columnspan = 1, sticky = sticky_all)
+
+  def get_brush(self):
+    if self.options_box == None:
+      return None
+    else:
+      return self.options_box.get_brush()
+
+  def get_current_model(self):
+    pass
+
+  def get_models(self):
+    pass
 
   def make_new_model(self):
     model = Model()

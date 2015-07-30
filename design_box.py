@@ -11,7 +11,7 @@ class DesignBox(tk.Frame):
   canvas = None
   xscrollbar = None
   yscrollbar = None
-  def __init__(self, master):
+  def __init__(self, master, brush_func):
     tk.Frame.__init__(self, master)
 
     self.rowconfigure(0, weight = 1)
@@ -23,7 +23,7 @@ class DesignBox(tk.Frame):
     self.yscrollbar = tk.Scrollbar(self, orient = tk.VERTICAL)
     self.yscrollbar.grid(row = 0, column = 1, sticky = sticky_all)
 
-    self.canvas = ModelCanvas(self)
+    self.canvas = ModelCanvas(self, brush_func)
     self.canvas.grid(row = 0, column = 0, sticky = sticky_all)
 
     self.xscrollbar['command'] = self.canvas.xview

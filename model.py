@@ -46,8 +46,8 @@ class Model(object):
     for new_p in new_particles:
       self.add_particle(new_p.grid_coord, new_p.particle_specs, new_p.body_specs)
 
-  def point_iterator(self):
-    return iter(self._particles)
+  def points_iterator(self):
+    return iter([p.grid_coord for p in self._particles])
 
   @property
   def grid(self):
@@ -78,7 +78,7 @@ class Model(object):
     This method does nothing if the particle was not in the model """
     if self.has_particle(grid_coord):
       p = self.grid_coord_to_particle[grid_coord]
-      self.grid_coord_to_particle.remove(grid_coord)
+      del self.grid_coord_to_particle[grid_coord]
       self._particles.remove(p)
   def has_particle(self, grid_coord):
     """ Returns True iff there is a particle in the model at the given grid coordinate. """

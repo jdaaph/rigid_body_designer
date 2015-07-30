@@ -16,7 +16,7 @@ class SquareGrid(object):
 
   def points_iterator(self, box):
     """ Returns an iterator to all points within the box. """
-    return it.product(range(box[0], box[2] + 1), range(box[1], box[3] + 1))
+    return it.product(range(box[0], box[2]), range(box[1], box[3]))
 
   def grid_coord_to_pixel(self, coord, cell_diameter):
     """ Converts the grid coordinate to a pixel coordinate.
@@ -42,8 +42,8 @@ class SquareGrid(object):
 
     min_x = min([p[0] for p in grid_coords]) - padding
     min_y = min([p[1] for p in grid_coords]) - padding
-    max_x = max([p[0] for p in grid_coords]) + padding
-    max_y = max([p[1] for p in grid_coords]) + padding
+    max_x = max([p[0] for p in grid_coords]) + padding + 1
+    max_y = max([p[1] for p in grid_coords]) + padding + 1
     return (min_x, min_y, max_x, max_y)
 
   def grid_coord_to_pixel_bbox(self, gc_bbox, cell_diameter):
@@ -54,7 +54,7 @@ class SquareGrid(object):
     min_x, min_y, max_x, max_y = gc_bbox
     top_left = self.grid_coord_to_pixel((min_x, min_y), cell_diameter)
     bottom_right = self.grid_coord_to_pixel((max_x, max_y), cell_diameter)
-    return (top_left[0], top_left[1], bottom_right[0] + cell_diameter, bottom_right[1] + cell_diameter)
+    return (top_left[0], top_left[1], bottom_right[0], bottom_right[1])
 
   def pixel_to_grid_coord_bbox(self, pixel_bbox, cell_diameter):
     """ Returns the smallest bounding box in grid coordinates containing the given pixel bounding box. """
@@ -63,5 +63,5 @@ class SquareGrid(object):
 
     min_x, min_y, max_x, max_y = pixel_bbox
     top_left = self.pixel_to_grid_coord((min_x, min_y), cell_diameter)
-    bottom_right = self.pixel_to_grid_coord((max_x, max_y), cell_diameter)
-    return (top_left[0], top_left[1], bottom_right[0], bottom_right[1])
+    bottom_right = self.pixel_to_grid_coord((max_x-1, max_y-1), cell_diameter)
+    return (top_left[0], top_left[1], bottom_right[0]+1, bottom_right[1]+1)
