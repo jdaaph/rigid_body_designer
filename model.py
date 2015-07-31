@@ -84,27 +84,12 @@ class Model(object):
     """ Returns True iff there is a particle in the model at the given grid coordinate. """
     return grid_coord in self.grid_coord_to_particle
 
-  def get_particle_type(self, grid_coord):
-    """ Returns the ParticleSpecs object for the particle at the given grid coordinate,
-    or None if no particle exists there. """
+  def get_particle(self, grid_coord):
+    """ Returns the associated particle at this location, or None if none exists. """
     if self.has_particle(grid_coord):
-      return self.grid_coord_to_particle[grid_coord].particle_specs
+      return self.grid_coord_to_particle[grid_coord]
     else:
       return None
-  def get_body_type(self, grid_coord):
-    """ Returns the BodySpecs object for the particle at the given grid coordinate,
-    or None if no particle exists there. """
-    if self.has_particle(grid_coord):
-      return self.grid_coord_to_particle[grid_coord].body_specs
-    else:
-      return None
-
-  def set_particle_type(self, grid_coord, particle_specs):
-    if self.has_particle(grid_coord):
-      self.grid_coord_to_particle[grid_coord].particle_specs = particle_specs
-  def set_body_type(self, grid_coord, body_specs):
-    if self.has_particle(grid_coord):
-      self.grid_coord_to_particle[grid_coord].body_specs = body_specs
 
   def calc_connected_body_particles(self, grid_coord):
     '''returns a list of particles in the same body as particle'''
