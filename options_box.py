@@ -10,6 +10,8 @@ from model_canvas import ModelView
 from brush import Brush
 from Operation import Group_Set
 
+import utils
+
 def tuple2color(vals):
   str_vals = map(lambda n: format(n%4096, '03x'), vals)
   return '#' + ''.join(str_vals)
@@ -40,7 +42,7 @@ class OptionsBox(tk.Frame):
 
     self.models_box = ModelsBox(master = self,
         model_func = model_func, callback = self.trigger_model_change)
-    self.tool_box = ToolBox(master = self)
+    self.tool_box = ToolBox(master = self, callback = self.trigger_brush_change)
     # self.add_brush_change_callback(self.tool_box.update_buttons)
     self.edit_box = BrushEditorBox(master = self)
     # self.add_brush_change_callback(self.edit_box.update_fields)
@@ -75,7 +77,8 @@ class OptionsBox(tk.Frame):
 #  def add_brush_change_callback(self, func):
 #    self.brush_change_callbacks.append(func)
   def trigger_brush_change(self):
-    self.event_generate('<<Brush>>')
+    key = utils.event_data_register(self.get_brush())
+    self.event_generate('<<Brush>>', state = key)
     print 'Generated <<Brush>> event:', self.get_brush()
 
   def add_model_change_callback(self, func):
@@ -262,7 +265,7 @@ class ToolBox(tk.Frame):
   bodies = None
 
   default_brush = None
-  def __init__(self, master):
+  def __init__(self, master, callback):
     tk.Frame.__init__(self, master)
 
     self.columnconfigure(1, weight = 1)
@@ -277,11 +280,11 @@ class ToolBox(tk.Frame):
     self.bodies = it.imap(lambda c: Brush.BodySpecs(idx = c[0], color = c[1]), enumerate(body_colors))
 
     self.particle_buttons = ButtonList(self, text = unichr(0x25CF),
-        object_iter = self.particles, callback = lambda: self.event_generate('<<Brush>>'),
+        object_iter = self.particles, callback = callback,
         num_init_buttons = 2) #0x25CF is filled circle
     self.particle_buttons.grid(column = 1, row = 0, sticky = tk.W + tk.E)
     self.body_buttons = ButtonList(self, text = unichr(0x25CB),
-        object_iter = self.bodies, callback = lambda: self.event_generate('<<Brush>>')) #0x25CB is empty circle
+        object_iter = self.bodies, callback = callback) #0x25CB is empty circle
     self.body_buttons.grid(column = 1, row = 1, sticky = tk.W + tk.E)
 
     self.default_brush = Brush(self.particle_buttons.get_cur_object(), self.body_buttons.get_cur_object())
@@ -375,7 +378,8 @@ class BrushEditorBox(tk.Frame):
       brush.body_specs.color = self.body_color_var.get()
     
     #self.brush_change_callback()
-    self.event_generate('<<Brush>>')
+    key = self.event_data_register(brush)
+    self.event_generate('<<Brush>>', state = key)
     
 
     

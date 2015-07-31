@@ -7,6 +7,7 @@ from options_box import OptionsBox, OperationBox
 # from Operation import Operation
 from model import Model
 import rbd_io
+import utils
 
 sticky_all = tk.N + tk.S + tk.W + tk.E
 
@@ -37,10 +38,10 @@ class Application(tk.Frame):
 
     self.layoutWidgets()
 
-    self.event_generate('<<Brush>>')
+    self.event_generate('<<Brush>>', state=utils.event_data_register(self.get_brush()))
 
   def initWidgets(self):
-    self.design_box = DesignBox(self, brush_func = self.get_brush)
+    self.design_box = DesignBox(self)
     self.options_box = OptionsBox(self, self.make_new_model, self.export_data, self.import_data)
     self.quitButton = tk.Button(self, text='Quit', command=self.quit)
 

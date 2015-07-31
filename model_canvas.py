@@ -322,7 +322,8 @@ class ModelView(tk.Canvas, object):
   def _draw_hidden_particle(self, p):
     """ Update a particle if it is hidden. """
     oval_id = p.oval_id
-    self.itemconfigure(oval_id, state = tk.HIDDEN)
+    if self.itemconfigure(oval_id, 'state') != tk.HIDDEN:
+      self.itemconfigure(oval_id, state = tk.HIDDEN)
 
   def _draw_particle(self, p):
     """ Updates the location/size of the single given particle on the canvas.
@@ -359,14 +360,16 @@ class ModelView(tk.Canvas, object):
     self.update()
 
   def handle_model_event(self, event):
-    dirty_gridcoords = utils.event_data_retrieve(event.state)
+    event_data = utils.event_data_retrieve(event.state)
+    if self.model != event_data['model']:  return
+
+    dirty_gridcoords = event_data['dirty_gridcoords']
     self._add_new_gridcoords(dirty_gridcoords)
-    dirty_particles = [self._gridcoord_to_particle[gc] for gc in dirty_gridcoords]
+    dirty_particles = [self._gridcoord_to_particle[gc] for gc in dirty_gridcoords if self.point_drawn(gc)]
 
     self._model_particles = set([self._gridcoord_to_particle[gc] for gc in self.model.points_iterator()])
     self.mark_dirty(dirty_particles)
     self.update()
-    print '*',event.state,len(dirty_gridcoords)
 
 
 
@@ -387,7 +390,7 @@ class ModelCanvas(ModelView):
   MODE_NORMAL = 0
   MODE_MANIPULATE = 1
 
-  def __init__(self, master, brush_func, **kargs):
+  def __init__(self, master, **kargs):
     ModelView.__init__(self, master, **kargs)
 
     # Flags for drawing
@@ -402,7 +405,6 @@ class ModelCanvas(ModelView):
 
     # Initialize to erasing brush
     self._brush = None
-    self._brush_func = brush_func
 
     # Initialize to normal editing mode
     self._mode = self.MODE_NORMAL
@@ -429,7 +431,7 @@ class ModelCanvas(ModelView):
     self.bind_all('<<Rotate>>', self.handle_rotate)
     self.bind_all('<<Flip>>', self.handle_flip)
 
-    self.bind_all('<<Brush>>', self.handle_brush)
+    self.bind_all('<<Brush>>', self.handle_brush_event)
     # self.bind('<Command-r>', self.handle_cmdr)
     # self.bind('<Command-v>', self.handle_cmdv)
     # self.bind('<Command-m>', self.handle_cmdm)
@@ -494,7 +496,7 @@ class ModelCanvas(ModelView):
     
     ### Emit model-changed event
     gridcoords = [p.gridcoord for p in particles]
-    key = utils.event_data_register(gridcoords)
+    key = utils.event_data_register(dict(dirty_gridcoords = gridcoords, model = self.model))
     self.event_generate('<<Model>>', state=key, when='tail')
 
 
@@ -541,8 +543,8 @@ class ModelCanvas(ModelView):
 
   #### Event handlers
 
-  def handle_brush(self, event):
-    self.brush = self._brush_func()
+  def handle_brush_event(self, event):
+    self.brush = utils.event_data_retrieve(event.state)
 
   def handle_drag(self, event):
     print 'drag'
