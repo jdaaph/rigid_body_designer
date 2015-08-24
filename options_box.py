@@ -6,9 +6,9 @@ import itertools as it
 import re
 
 from model import Model
-from model_canvas import TestCanvas
+from model_canvas import ModelCanvas
 from brush import Brush
-from Operation import Group_Set
+#from Operation import Group_Set
 
 import utils
 
@@ -239,7 +239,7 @@ class ModelsBox(tk.Frame):
 
         self.columnconfigure(1, weight = 1)
 
-        self.thumbnail = TestCanvas(self, mode = 'view')
+        self.thumbnail = ModelCanvas(self, mode = 'view')
         self.thumbnail.configure(width = 100, height = 100)
         self.thumbnail.set_model(model)
         self.thumbnail.padding = 5

@@ -911,8 +911,8 @@ class MoveLayer(SelectLayer):
     
   def merge(self):
     assert False, "Merging unsupported with MoveLayer"
-  def merge_coordinates(self):
-    return [p.gridcoord for p in self.particles_iterator()]
+  #def merge_coordinates(self):
+  #  return [p.gridcoord for p in self.particles_iterator()]
 
   def finish(self):
     SelectLayer.finish(self)
@@ -985,7 +985,7 @@ class MoveLayer(SelectLayer):
   def point_drawn(self, gc):
     return gc in self._gridcoord_to_particle_moving and gc in self._gridcoord_to_particle_stationary
   def particle_hidden(self, p):
-    return not self._duplicating and self.particle_stationary(p)
+    return False
   def particle_moving(self, p):
     return self._moving_tag in self.canvas.gettags(p.oval_id)
   def particle_stationary(self, p):
