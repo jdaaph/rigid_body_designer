@@ -6,7 +6,7 @@ import itertools as it
 import re
 
 from model import Model
-from model_canvas import ModelView
+from model_canvas import TestCanvas
 from brush import Brush
 from Operation import Group_Set
 
@@ -239,9 +239,9 @@ class ModelsBox(tk.Frame):
 
         self.columnconfigure(1, weight = 1)
 
-        self.thumbnail = ModelView(self)
+        self.thumbnail = TestCanvas(self, mode = 'view')
         self.thumbnail.configure(width = 100, height = 100)
-        self.thumbnail.model = model
+        self.thumbnail.set_model(model)
         self.thumbnail.padding = 5
         self.thumbnail.grid(row = 0, column = 0, sticky = sticky_all)
 
@@ -251,10 +251,7 @@ class ModelsBox(tk.Frame):
         self.bind_all('<<Model>>', lambda e: self.update_thumbnail(), add='+')
 
       def update_thumbnail(self):
-        print '*',
-        self.thumbnail.show_entire_model()
-        print '*',
-        self.thumbnail.update()
+        pass
 
 
 class ToolBox(tk.Frame):

@@ -4,7 +4,7 @@ import itertools as it
 
 sticky_all = tk.N + tk.S + tk.E + tk.W
 
-from model_canvas import ModelCanvas
+from model_canvas import TestCanvas
 
 class DesignBox(tk.Frame):
   # canvas is the model....
@@ -23,7 +23,7 @@ class DesignBox(tk.Frame):
     self.yscrollbar = tk.Scrollbar(self, orient = tk.VERTICAL)
     self.yscrollbar.grid(row = 0, column = 1, sticky = sticky_all)
 
-    self.canvas = ModelCanvas(self)
+    self.canvas = TestCanvas(self, mode = 'edit')
     self.canvas.grid(row = 0, column = 0, sticky = sticky_all)
 
     self.xscrollbar['command'] = self.canvas.xview
@@ -31,4 +31,4 @@ class DesignBox(tk.Frame):
     self.canvas.config(xscrollcommand = self.xscrollbar.set, yscrollcommand = self.yscrollbar.set)
 
   def switch_model(self, model):
-    self.canvas.model = model
+    self.canvas.set_model(model)

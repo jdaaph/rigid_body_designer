@@ -4,11 +4,14 @@ import ttk
 import itertools as it
 
 from model import Model
+from model_canvas_operation import MCO_Move
+from particle import DrawnParticle
 import grid
 import utils
 import Operation
 from brush import Brush
 from copy import deepcopy
+from model_canvas_layer import ViewLayer, EditBackgroundLayer
 
 sticky_all = tk.N + tk.S + tk.E + tk.W
 
@@ -17,14 +20,6 @@ MOD_CTRL = 0x4
 MOD_BTN1 = 0x100
 MOD_LEFTALT = 0x0008  
 
-def box_contains_box(box1, box2):
-  return (box1[0] <= box2[0] <= box1[2]
-      and box1[0] <= box2[2] <= box1[2]
-      and box1[1] <= box2[1] <= box1[3]
-      and box1[1] <= box2[3] <= box1[3])
-def box_union(box1, box2):
-  return (min(box1[0], box2[0]), min(box1[1], box2[1]),
-          max(box1[2], box2[2]), max(box1[3], box2[3]))
 
 class ModelView(tk.Canvas, object):
   """ ModelView implements a Canvas subclass for solely displaying the points of a Model object.
@@ -62,9 +57,6 @@ class ModelView(tk.Canvas, object):
     # Initialize list of grid coordinates needing updating
     self._dirty = set([])
 
-    # Initialize set of particles in model
-    self._model_particles = set([])
-
     ## Add basic event handlers
     self.bind('<Configure>', self.handle_resize)
     self.bind_all('<<Model>>', self.handle_model_event, add='+')
@@ -79,10 +71,9 @@ class ModelView(tk.Canvas, object):
   def model(self, model):
     self._add_new_gridcoords(model.points_iterator())
     new_model_particles = set([self._gridcoord_to_particle[gc] for gc in model.points_iterator()])
-    dirty_particles = self._model_particles | new_model_particles
+    dirty_particles = set(self.particles_iterator()) | new_model_particles
 
     self._model = model
-    self._model_particles = new_model_particles
     self.mark_dirty(dirty_particles)
     self.update()
 
@@ -157,19 +148,14 @@ class ModelView(tk.Canvas, object):
     ## Only run this when we're idle, to prevent long updates from slowing down the system (too much)
     self.after_idle(self._force_update, update_all)
 
-
   def update_scrollregion(self):
     """ Resize the canvas scrollregion to make sure the entire model is viewable. """
     ## If there are any points in the model, make sure the scrollable region covers the entire model
     ## Add scrolling if screen is too small.
     visible_box = self.visible_bbox
     model_box = self.model_bbox
-    if model_box != None:
-      self['scrollregion'] = box_union(visible_box, model_box)
-    else:
-      self['scrollregion'] = visible_box
+    self['scrollregion'] = utils.box_union(visible_box, model_box)
     self._add_new_gridcoords()
-
 
   def update_particles(self, update_all = False):
     """ Add new particles to canvas and update for any changes since last update. """
@@ -179,6 +165,7 @@ class ModelView(tk.Canvas, object):
       self.mark_clean()
     else:
       self._draw_particles()
+
 
   def get_dirty(self):
     """ Returns an iterable of the drawn particles marked as needing to be redrawn,
@@ -201,6 +188,7 @@ class ModelView(tk.Canvas, object):
       self._dirty = set([])
     else:
       self._dirty -= set(particles)
+
 
   #### Particle information
 
@@ -272,7 +260,7 @@ class ModelView(tk.Canvas, object):
     oval_id = self.create_oval(0, 0, 0, 0, tags = 'particle', state = tk.HIDDEN)
 
     model_p = self.model.get_particle(gridcoord)
-    p = DrawnParticle(gridcoord = gridcoord, oval_id = oval_id, particle = model_p)
+    p = DrawnParticle(gridcoord = gridcoord, oval_id = oval_id, model_particle = model_p)
     self._gridcoord_to_particle[gridcoord] = p
     return p
   def _add_new_gridcoords(self, gridcoords = None):
@@ -314,7 +302,7 @@ class ModelView(tk.Canvas, object):
     return dict(fill = fill, outline = outline, width = 2, state = state)
 
   def _draw_shown_particle(self, p):
-    """ Update a particle if it is in the model. """
+    """ Update a particle if it is not being hidden. """
     ## Get the shape id
     oval_id = p.oval_id
     self.coords(oval_id, *self._get_oval_coords(p))
@@ -328,7 +316,8 @@ class ModelView(tk.Canvas, object):
   def _draw_particle(self, p):
     """ Updates the location/size of the single given particle on the canvas.
     TODO: This might be easier/more elegant if we used tags. """
-    ## If it's hidden, draw it only if it's already added
+    ## Display particle based on whether it's hidden or not.
+    p.model_particle = self.model.get_particle(p.gridcoord)
     if self.particle_hidden(p):
       self._draw_hidden_particle(p)
     else:
@@ -342,7 +331,6 @@ class ModelView(tk.Canvas, object):
       self.mark_clean()
 
     for p in dirty:
-      p.particle = self.model.get_particle(p.gridcoord)
       self._draw_particle(p)
     if len(dirty) > 0:  print 'drew', len(dirty), 'particles'
 
@@ -367,7 +355,6 @@ class ModelView(tk.Canvas, object):
     self._add_new_gridcoords(dirty_gridcoords)
     dirty_particles = [self._gridcoord_to_particle[gc] for gc in dirty_gridcoords if self.point_drawn(gc)]
 
-    self._model_particles = set([self._gridcoord_to_particle[gc] for gc in self.model.points_iterator()])
     self.mark_dirty(dirty_particles)
     self.update()
 
@@ -399,9 +386,9 @@ class ModelCanvas(ModelView):
     ## Set up edit functionality
 
     # Initialize to empty selection, copy list, cut list
-    self._selected = set([])
-    self._copied = set([])
-    self._cut = set([])
+    self._selected = set([]) # Currently selected particles
+    self._copied = set([]) # Particles copied to clipboard
+    self._cut = set([]) # Particles being manipulated
 
     # Initialize to erasing brush
     self._brush = None
@@ -409,21 +396,26 @@ class ModelCanvas(ModelView):
     # Initialize to normal editing mode
     self._mode = self.MODE_NORMAL
 
+    # Initialize operation information dict (stores data for current operation)
+    self.cur_operation = None
+
     ## Add basic event handlers
     # Link virtual events to key-presses (conceivably, we could use different keypresses for Mac/Windows)
-    self.event_add('<<Drag>>', '<B1-Motion>')
-    self.event_add('<<Move>>', '<B1-Motion><ButtonRelease-1>')
-    self.event_add('<<MoveDuplicate>>', '<B1-Motion><Shift-ButtonRelease-1>')
+    self.event_add('<<MoveDrag>>', '<B1-Motion>')
     self.event_add('<<Undo>>', '<Command-z>')
     self.event_add('<<Copy>>', '<Command-c>')
     self.event_add('<<Cut>>', '<Command-x>')
     self.event_add('<<Paste>>', '<Command-v>')
     self.event_add('<<Rotate>>', '<Command-r>')
     self.event_add('<<Flip>>', '<Command-f>')
-    def p(x): print x
-    self.bind('<<Drag>>', self.handle_drag)
-    self.bind('<<Move>>', self.handle_move)
-    self.bind('<<MoveDuplicate>>', self.handle_move_duplicate)
+
+    self.bind('<ButtonPress-1>', self.handle_leftpress)
+    self.bind('<ButtonRelease-1>', self.handle_leftrelease)
+    self.bind('<ButtonPress-2>', self.handle_rightpress)
+
+    self.bind('<<Paint>>', self.handle_paint)
+    self.bind('<<MoveDrag>>', self.handle_movedrag)
+    self.bind('<<MoveEnd>>', self.handle_moveend)
     self.bind_all('<<Undo>>', self.handle_undo)
     self.bind_all('<<Copy>>', self.handle_copy)
     self.bind_all('<<Cut>>', self.handle_cut)
@@ -499,15 +491,53 @@ class ModelCanvas(ModelView):
     key = utils.event_data_register(dict(dirty_gridcoords = gridcoords, model = self.model))
     self.event_generate('<<Model>>', state=key, when='tail')
 
+  def apply_current_operation(self):
+    changes = self.cur_operation.submit()
+
+    dirty_gridcoords = [p.gridcoord for p in changes]
+    for p in changes:
+      print p.gridcoord, p.model_particle
+      self._set_particle_at_gridcoord(p.gridcoord, p)
+
+    self.cur_operation = None
+
+    print 'particles changed:',len(changes)
+
+    if self.normal_mode():
+      key = utils.event_data_register(dict(model = self.model, dirty_gridcoords = dirty_gridcoords))
+      self.event_generate('<<Model>>', state = key, when = 'tail')
+
 
   #### Particle information
 
+  def particle_in_operation(self, p):
+    return self.cur_operation != None and self.cur_operation.particle_in_operation(p)
   def particle_selected(self, p):
     return p in self._selected
   def point_selected(self, gridcoord):
     return self.point_drawn(gridcoord) and self.particle_selected(self._gridcoord_to_particle[gridcoord])
 
   #### Private member functions. Don't mess with these unless you know what you're doing.
+
+  def _get_particle_at_gridcoord(self, gridcoord):
+    if self.normal_mode():
+      return self._gridcoord_to_particle[gridcoord]
+    else:
+      cut_dict = {p.gridcoord: p for p in self.cut}
+      return cut_dict[gridcoord]
+  def _set_particle_at_gridcoord(self, gridcoord, particle):
+    old = self._get_particle_at_gridcoord(gridcoord)
+    
+    if self.normal_mode():
+      if particle.in_model:
+        self.model.set_particle(gridcoord, particle.model_particle)
+      else:
+        self.model.remove_particle(gridcoord)
+      #print gridcoord, self.itemcget(particle.oval_id, 'fill')
+    else:
+      old.model_particle = particle.model_particle
+
+    self.mark_dirty([old])
 
   def _get_oval_characteristics(self, particle):
     """ Returns characteristics of the oval corresponding to the given drawn particle.
@@ -525,19 +555,34 @@ class ModelCanvas(ModelView):
     particle = ModelView._add_gridcoord(self, gridcoord)
     
     oval_id = particle.oval_id
-    self.tag_bind(oval_id, "<ButtonPress-1>", lambda e, p=particle: self.handle_left_click(e, p))
+    #self.tag_bind(oval_id, "<ButtonPress-1><ButtonRelease-1>", lambda e, p=particle: self.handle_left_click(e, p))
     #self.tag_bind(oval_id, "<ButtonRelease-1>", lambda e, c=gridcoord: self.handle_left_release(e, c))
-    self.tag_bind(oval_id, "<Button-2>", lambda e,p=particle: self.handle_right_click(e, p))
-    self.tag_bind(oval_id, "<B2-Motion>", self.handle_right_drag)
+    #self.tag_bind(oval_id, "<Button-2>", lambda e,p=particle: self.handle_right_click(e, p))
+    #self.tag_bind(oval_id, "<B2-Motion>", self.handle_right_drag)
     return particle
 
-  def _draw_particle(self, particle):
+  def _draw_operation_particle(self, p):
+    """ Update a particle whose drawing characteristics are being handled by the 
+    current operation. """
+    #print 'operation handles drawing of particle @', p.gridcoord
+    oval_id = p.oval_id
+    self.coords(oval_id, *self.cur_operation.get_oval_coords(p))
+    self.itemconfigure(oval_id, **self.cur_operation.get_oval_characteristics(p))
+
+  def _draw_particle(self, p):
     """ Updates the location/size of the single given particle on the canvas.
-    Extends ModelView._draw_particle()
+    Replaces ModelView._draw_particle()
     TODO: This might be easier/more elegant if we used tags. """
-    ModelView._draw_particle(self, particle)
-    if self.particle_selected(particle):
-      oval_id = particle.oval_id
+    ## If the particle is controlled by the current operation, let the operation
+    ## choose how to display it.
+    ## Otherwise, display it based on whether it's hidden or not.
+    if self.particle_in_operation(p):
+      self._draw_operation_particle(p)
+    else:
+      ModelView._draw_particle(self, p)
+
+    if self.particle_selected(p):
+      oval_id = p.oval_id
       self.tag_raise(oval_id, 'particle')
 
 
@@ -546,14 +591,35 @@ class ModelCanvas(ModelView):
   def handle_brush_event(self, event):
     self.brush = utils.event_data_retrieve(event.state)
 
-  def handle_drag(self, event):
-    print 'drag'
+  def handle_paint(self, event):
+    gridcoord = self.model.grid.pixel_to_grid_coord((event.x, event.y), self.diameter)
+    particle = self._get_particle_at_gridcoord(gridcoord)
+    brush = self._brush
+    if not self.particle_selected(particle):
+      self.selected = set([particle])
 
-  def handle_move(self, event):
-    print 'move'
+    self.apply_brush(brush, self._selected)
+    self.update()
 
-  def handle_move_duplicate(self, event):
-    print 'move duplicate'
+  def handle_movedrag(self, event):
+    print 'movedrag'
+    if self.cur_operation == None:
+      startpos = (event.x, event.y)
+      if self.normal_mode():
+        particles = self.selected
+      else:
+        particles = self.cut
+      self.cur_operation = MCO_Move(self, particles, startpos = startpos)
+
+    self.cur_operation.set_duplicating(event.state & MOD_SHIFT)
+    self.cur_operation.drag((event.x, event.y))
+    self.update()
+
+  def handle_moveend(self, event):
+    print 'moveend'
+    self.cur_operation.set_duplicating(event.state & MOD_SHIFT)
+    self.apply_current_operation()
+    self.update()
 
   def handle_undo(self, event):
     print 'undo'
@@ -573,37 +639,51 @@ class ModelCanvas(ModelView):
   def handle_flip(self, event):
     print 'flip'
 
+  def handle_leftpress(self, event):
+    gridcoord = self.model.grid.pixel_to_grid_coord((event.x, event.y), self.diameter)
+    particle = self._get_particle_at_gridcoord(gridcoord)
+    if not self.particle_selected(particle):
+      self.selected = set([particle])
+
+  def handle_leftrelease(self, event):
+    if self.cur_operation == None:
+      self.event_generate('<<Paint>>', x = event.x, y = event.y)
+    else:
+      self.event_generate('<<MoveEnd>>', x = event.x, y = event.y)
+
   def handle_right_drag(self, event):
     x = self.canvasx(event.x)
     y = self.canvasy(event.y)
     gridcoord = self.model.grid.pixel_to_grid_coord((x,y), self.diameter)
     p = self._gridcoord_to_particle[gridcoord]
     self.handle_right_click(event, p)
-  def handle_right_click(self, event, particle):
-    def normal_click():
+  def handle_rightpress(self, event):
+    def normal(particle):
       self.selected = set([particle])
-    def shift_click():
+    def shift(particle):
       if self.particle_selected(particle):
         return
       box = self.model.grid.calc_bbox([p.gridcoord for p in self._selected] + [particle.gridcoord])
       self.selected = set([self._gridcoord_to_particle[gc] for gc in self.model.grid.points_iterator(box)])
-    def ctrl_click():
+    def ctrl(particle):
       if self.particle_selected(particle):
         self.selected = self._selected - set([particle])
       else:
         self.selected = self._selected | set([particle])
-    def leftalt_click():
+    def leftalt(particle):
       body_coords = self.model.calc_connected_body_particles(particle.gridcoord)
       self.selected = set([self._gridcoord_to_particle[gc] for gc in body_coords])
 
+    gridcoord = self.model.grid.pixel_to_grid_coord((event.x, event.y), self.diameter)
+    particle = self._get_particle_at_gridcoord(gridcoord)
     if event.state & MOD_SHIFT:
-      shift_click()
+      shift(particle)
     elif event.state & MOD_CTRL:
-      ctrl_click()
+      ctrl(particle)
     elif event.state & MOD_LEFTALT:
-      leftalt_click()
+      leftalt(particle)
     else:
-      normal_click()
+      normal(particle)
     self._draw_particles()
 
   # def handle_left_press(self, event):
@@ -628,13 +708,6 @@ class ModelCanvas(ModelView):
   #     self.handle_left_drag(event, old_coord, new_coord)
   #   self.left_press_coord = None
 
-  def handle_left_click(self, event, particle):
-    brush = self._brush
-    if not self.particle_selected(particle):
-      self.selected = set([particle])
-
-    self.apply_brush(brush, self._selected)
-    self.update()
 
   # def handle_left_drag(self, event, old_coord, new_coord):
   #   ''' left drag is move, with initial and final mouse position as base/ref point'''
@@ -773,36 +846,57 @@ class ModelCanvas(ModelView):
   #  dirty.extend(self.model_particles)
   #  self.redraw_particles(dirty)
   #  self.update_grid_size()
+class TestCanvas(tk.Canvas, object):
+  def __init__(self, master, model = None, mode = 'view', **kargs):
+    tk.Canvas.__init__(self, master, bd = 0, highlightthickness = 0, **kargs)
 
+    self._model = model
 
-class DrawnParticle(object):
-  def __init__(self, gridcoord, oval_id, particle = None):
-    ## Particle parameters
-    self.gridcoord = gridcoord
-    self.oval_id = oval_id
-    self._particle = particle
+    self._layers = []
 
-    ## Particle flags
-    self.in_model = particle == None
-
-  @property
-  def particle(self):
-    return self._particle
-  @particle.setter
-  def particle(self, p):
-    self._particle = p
-    self.in_model = p != None
+    if mode == 'edit':
+      self._layers.append(EditBackgroundLayer(self))
+    elif mode == 'view':
+      self._layers.append(ViewLayer(self))
+    else:
+      assert False, 'Unsupported mode: {0}'.format(mode)
+    self.top_layer().start()
 
   @property
-  def particle_specs(self):
-    return self.particle.particle_specs if self.in_model else None
-  @particle_specs.setter
-  def particle_specs(self, specs):
-    self.particle.particle_specs = specs
+  def model(self):
+    return self._model
+  
+  def set_model(self, model):
+    self.background_layer().set_model(model)
 
-  @property
-  def body_specs(self):
-    return self.particle.body_specs if self.in_model else None
-  @body_specs.setter
-  def body_specs(self, specs):
-    self.particle.body_specs = specs
+  def top_layer(self):
+    return self._layers[-1]
+  def background_layer(self):
+    return self._layers[0]
+  def push_layer(self, layer):
+    self._layers.append(layer)
+  def pop_layer(self):
+    return self._layers.pop()
+
+  def start_layer(self, layer):
+    self.top_layer().pause()
+    self.push_layer(layer)
+    self.top_layer().start()
+  def merge_top_layer(self):
+    layer = self.pop_layer()
+    layer.finish()
+    self.top_layer().merge(layer)
+    layer.clean()
+    self.top_layer().resume()
+  def cancel_top_layer(self):
+    layer = self._layers.pop()
+    layer.cancel()
+    layer.clean()
+    self.top_layer().resume()
+
+  def update_layer(self, layer):
+    self.after_idle(layer.update)
+    #print 'update requested:', layer
+
+
+

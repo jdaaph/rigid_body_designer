@@ -1,5 +1,8 @@
-import grid
+
 from copy import deepcopy
+
+import grid
+from particle import Particle
 
 class Model(object):
   """ Model implements an object that stores points in a "model", or collection of points of various particle types
@@ -73,6 +76,13 @@ class Model(object):
       particle.particle_specs = particle_specs
       particle.body_specs = body_specs
     return particle
+  def set_particle(self, grid_coord, particle):
+    """ Sets the particle at the given grid location to be the given particle.
+    If an existing particle is at this location, it is removed. """
+    assert particle != None
+    self.remove_particle(grid_coord)
+    self.grid_coord_to_particle[grid_coord] = particle
+    self._particles.add(particle)
   def remove_particle(self, grid_coord):
     """ Remove a given particle from the model, if it is in there.
     This method does nothing if the particle was not in the model """
@@ -102,20 +112,3 @@ class Model(object):
 
   def calc_bbox(self):
     return self.grid.calc_bbox([p.grid_coord for p in self._particles])
-
-class Particle(object):
-  grid_coord = None
-
-  particle_specs = None
-  body_specs = None
-  def __init__(self, grid_coord, particle_specs, body_specs):
-    self.grid_coord = grid_coord
-
-    self.particle_specs = particle_specs
-    self.body_specs = body_specs
-
-  def copy(self):
-    new_par = deepcopy(self)
-    new_par.particle_specs = self.particle_specs
-    new_par.body_specs = self.body_specs
-    return new_par

@@ -14,6 +14,10 @@ class SquareGrid(object):
     """ Nothing to do here... """
     pass
 
+  @property
+  def grid_type(self):
+    return GRID_SQUARE
+
   def points_iterator(self, box):
     """ Returns an iterator to all points within the box. """
     return it.product(range(box[0], box[2]), range(box[1], box[3]))
@@ -65,3 +69,10 @@ class SquareGrid(object):
     top_left = self.pixel_to_grid_coord((min_x, min_y), cell_diameter)
     bottom_right = self.pixel_to_grid_coord((max_x-1, max_y-1), cell_diameter)
     return (top_left[0], top_left[1], bottom_right[0]+1, bottom_right[1]+1)
+
+  def grid_coord_in_bbox(self, grid_coord, gc_bbox):
+    if gc_bbox == None:  return False
+
+    x, y = grid_coord
+    min_x, min_y, max_x, max_y = gc_bbox
+    return min_x <= x < max_x and min_y <= y < max_y
