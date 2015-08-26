@@ -11,9 +11,15 @@ class Brush(object):
     def __init__(self, name, color):
       self.name = name
       self.color = color
+    def copy_attributes(self, obj):
+      self.name = obj.name
+      self.color = obj.color
   class BodySpecs(object):
     idx = None
     color = None
     def __init__(self, idx, color):
       self.idx = idx
       self.color = color
+    def copy_attributes(self, obj):
+      self.idx = obj.idx
+      self.color = obj.color

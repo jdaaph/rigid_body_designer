@@ -6,11 +6,8 @@ import itertools as it
 import re
 
 from model import Model
-from model_canvas import ModelCanvas
 from brush import Brush
-#from Operation import Group_Set
-
-import utils
+from Operation import Group_Set
 
 def tuple2color(vals):
   str_vals = map(lambda n: format(n%4096, '03x'), vals)
@@ -26,7 +23,7 @@ class OptionsBox(tk.Frame):
   io_box = None
   operation_box = None
 
-  #brush_change_callbacks = None
+  brush_change_callbacks = None
   model_change_callbacks = None
 
   prev_brush = None
@@ -34,7 +31,7 @@ class OptionsBox(tk.Frame):
   def __init__(self, master, model_func=None, export_func=None, import_func=None):
     tk.Frame.__init__(self, master)
 
-    # self.brush_change_callbacks = []
+    self.brush_change_callbacks = []
     self.model_change_callbacks = []
 
     self.rowconfigure(0, weight = 1)
@@ -43,13 +40,14 @@ class OptionsBox(tk.Frame):
     self.models_box = ModelsBox(master = self,
         model_func = model_func, callback = self.trigger_model_change)
     self.tool_box = ToolBox(master = self, callback = self.trigger_brush_change)
-    # self.add_brush_change_callback(self.tool_box.update_buttons)
-    self.edit_box = BrushEditorBox(master = self)
-    # self.add_brush_change_callback(self.edit_box.update_fields)
+    self.add_brush_change_callback(self.tool_box.update_buttons)
+    self.edit_box = BrushEditorBox(master = self,
+        brush_func = self.get_brush, callback = self.trigger_brush_change)
+    self.add_brush_change_callback(self.edit_box.update_fields)
 
     # add this callback to make use of Operations.Group_Set and trans_model_copy
-    #self.add_brush_change_callback(self.watchdog_group_set)
-    #self.add_model_change_callback(self.watchdog_trans_model_op)
+    self.add_brush_change_callback(self.watchdog_group_set)
+    self.add_model_change_callback(self.watchdog_trans_model_op)
 
     self.io_box = IOBox(master = self, export_func = export_func, import_func = import_func)
     self.operation_box = OperationBox(master=self)
@@ -63,8 +61,8 @@ class OptionsBox(tk.Frame):
     self.prev_brush = self.get_brush()
     self.trigger_brush_change()
 
-#  def get_default_brush(self):
-#    return self.tool_box.default_brush
+  def get_default_brush(self):
+    return self.tool_box.default_brush
   def get_brush(self):
     return self.tool_box.get_brush()
   def get_model(self):
@@ -74,12 +72,10 @@ class OptionsBox(tk.Frame):
   def get_copies(self):
     return self.models_box.get_copies()
 
-#  def add_brush_change_callback(self, func):
-#    self.brush_change_callbacks.append(func)
+  def add_brush_change_callback(self, func):
+    self.brush_change_callbacks.append(func)
   def trigger_brush_change(self):
-    key = utils.event_data_register(self.get_brush())
-    self.event_generate('<<Brush>>', state = key)
-    print 'Generated <<Brush>> event:', self.get_brush()
+    for f in self.brush_change_callbacks:  f()
 
   def add_model_change_callback(self, func):
     self.model_change_callbacks.append(func)
@@ -93,39 +89,39 @@ class OptionsBox(tk.Frame):
   def set_models(self, models):
     self.models_box.set_models(models)
 
-  # def watchdog_group_set(self):
-  #   '''This is added to the brush_change_callback, the watchdog that will enable group_set to detect brush change'''
-  #   # This ugly try is to surpass the first brush_change_callback when initializing the app
-  #   
-  #   try:
-  #     model = self.models_box.get_model()
-  #     if model.selected_particles:
-  #       model.current_operation = Group_Set(model=model, cache={'selected':model.selected_particles, 'not_selected':model.not_selected(), 'old_brush':self.prev_brush},
-  #         operation_box=self.operation_box) 
-  #     curr_op = model.current_operation
-  #     brush = model.get_brush()
-  #     brush_not_empty = (brush.particle_specs) and (brush.body_specs)
-  #     # fill the cache with new brush specs, and if new brush spec has an empty entry, wait for the next valid input
-  #     if isinstance (curr_op, Group_Set) and brush_not_empty:
-  #       curr_op.fill_cache(brush)
-  #       curr_op.paste()
-  #     elif isinstance (curr_op, Group_Set) and not brush_not_empty:
-  #       pass
-  #     self.prev_brush = self.get_brush()
-  #   except IndexError:
-  #     pass
+  def watchdog_group_set(self):
+    '''This is added to the brush_change_callback, the watchdog that will enable group_set to detect brush change'''
+    # This ugly try is to surpass the first brush_change_callback when initializing the app
+    
+    try:
+      model = self.models_box.get_model()
+      if model.selected_particles:
+        model.current_operation = Group_Set(model=model, cache={'selected':model.selected_particles, 'not_selected':model.not_selected(), 'old_brush':self.prev_brush},
+          operation_box=self.operation_box) 
+      curr_op = model.current_operation
+      brush = model.get_brush()
+      brush_not_empty = (brush.particle_specs) and (brush.body_specs)
+      # fill the cache with new brush specs, and if new brush spec has an empty entry, wait for the next valid input
+      if isinstance (curr_op, Group_Set) and brush_not_empty:
+        curr_op.fill_cache(brush)
+        curr_op.paste()
+      elif isinstance (curr_op, Group_Set) and not brush_not_empty:
+        pass
+      self.prev_brush = self.get_brush()
+    except IndexError:
+      pass
 
-  # def watchdog_trans_model_op(self):
-  #   ''' Used to monitor model change, will pass the current model's current_op to the next selected model '''
-  #   # This ugly try is to surpass the first model_change_callback when initializing the app
-  #   # note this is called by the ModelList class
-  #   prev_model = self.models_box.canvas.prev_model
-  #   new_model = self.models_box.get_model()
-  #   if prev_model and prev_model.current_operation and (prev_model is not new_model):
-  #     new_model.current_operation, prev_model.current_operation  = prev_model.current_operation, None
-  #     new_model.current_operation.model = new_model
-  #     new_model.current_operation.cache['not_selected'] = new_model.particles
-  #   self.models_box.canvas.prev_model = new_model
+  def watchdog_trans_model_op(self):
+    ''' Used to monitor model change, will pass the current model's current_op to the next selected model '''
+    # This ugly try is to surpass the first model_change_callback when initializing the app
+    # note this is called by the ModelList class
+    prev_model = self.models_box.canvas.prev_model
+    new_model = self.models_box.get_model()
+    if prev_model and prev_model.current_operation and (prev_model is not new_model):
+      new_model.current_operation, prev_model.current_operation  = prev_model.current_operation, None
+      new_model.current_operation.model = new_model
+      new_model.current_operation.cache['not_selected'] = new_model.particles
+    self.models_box.canvas.prev_model = new_model
 
 
 class ModelsBox(tk.Frame):
@@ -239,19 +235,16 @@ class ModelsBox(tk.Frame):
 
         self.columnconfigure(1, weight = 1)
 
-        self.thumbnail = ModelCanvas(self, mode = 'view')
-        self.thumbnail.configure(width = 100, height = 100)
-        self.thumbnail.set_model(model)
-        self.thumbnail.padding = 5
+        self.thumbnail = tk.Canvas(self, highlightthickness = 0, width = 100, height = 100)
         self.thumbnail.grid(row = 0, column = 0, sticky = sticky_all)
 
         self.copies_entry = tk.Entry(self, textvariable = self.copies_var)
         self.copies_entry.grid(row = 0, column = 1, sticky = tk.E + tk.W)
 
-        self.bind_all('<<Model>>', lambda e: self.update_thumbnail(), add='+')
-
       def update_thumbnail(self):
-        pass
+        self.thumbnail.delete('img')
+        img = self.model.generate_snapshot(self.thumbnail.winfo_width(), self.thumbnail.winfo_height())
+        self.thumbnail.create_window(0,0,window = img, tags = 'img', anchor = tk.NW, width = 100, height = 100)
 
 
 class ToolBox(tk.Frame):
@@ -315,8 +308,8 @@ class BrushEditorBox(tk.Frame):
   body_color_entry = None
 
   get_brush = None
-  # brush_change_callback = None
-  def __init__(self, master):
+  brush_change_callback = None
+  def __init__(self, master, brush_func, callback):
     tk.Frame.__init__(self, master)
     
     self.part_name_var = tk.StringVar(self)
@@ -329,8 +322,8 @@ class BrushEditorBox(tk.Frame):
     self.part_color_entry = self.add_field_editor('Particle Color:', self.part_color_var, 1)
     self.body_color_entry = self.add_field_editor('Body Color:', self.body_color_var, 2)
 
-    # self.get_brush = self.winfo_toplevel().get_brush
-    # self.brush_change_callback = callback
+    self.get_brush = brush_func
+    self.brush_change_callback = callback
 
   def add_field_editor(self, field_name, field_var, row):
     label = tk.Label(self, text = field_name, bg = self['bg'])
@@ -342,7 +335,7 @@ class BrushEditorBox(tk.Frame):
     return entry
 
   def update_fields(self):
-    # brush = self.get_brush()
+    brush = self.get_brush()
 
     if brush.particle_specs == None:
       self.part_name_entry['state'] = tk.DISABLED
@@ -374,9 +367,7 @@ class BrushEditorBox(tk.Frame):
     if brush.body_specs != None:
       brush.body_specs.color = self.body_color_var.get()
     
-    #self.brush_change_callback()
-    key = self.event_data_register(brush)
-    self.event_generate('<<Brush>>', state = key)
+    self.brush_change_callback()
     
 
     

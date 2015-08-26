@@ -7,24 +7,8 @@ from options_box import OptionsBox, OperationBox
 # from Operation import Operation
 from model import Model
 import rbd_io
-import utils
 
 sticky_all = tk.N + tk.S + tk.W + tk.E
-
-### TODO
-# Implement virtual events for:
-#  <<Brush>>          changes to currently selected brush
-#  <<ParticleType>>   changes to characteristics of a particular particle type (i.e. name, color)
-#  <<BodyType>>       changes to characteristics of a particular body type (i.e. color)
-#  <<Model>>          changes to a Model object (adding/removing/painting particles)
-#  <<ModelSelect>>    new model selected for editing
-# Bind a widget to these events just as you would an ordinary event:
-#  widget.bind('<<Brush>>', handler_function)
-#
-# Make Application query-able for global model-editing properties
-#   get_brush()
-#   get_current_model()
-#   get_models()
 
 class Application(tk.Frame):
   design_box = None
@@ -37,8 +21,6 @@ class Application(tk.Frame):
     self.initWidgets()
 
     self.layoutWidgets()
-
-    self.event_generate('<<Brush>>', state=utils.event_data_register(self.get_brush()))
 
   def initWidgets(self):
     self.design_box = DesignBox(self)
@@ -67,21 +49,9 @@ class Application(tk.Frame):
     self.options_box.grid(column = 1, row = 0, sticky = sticky_all)
     self.quitButton.grid(column = 0, row = 1, columnspan = 1, sticky = sticky_all)
 
-  def get_brush(self):
-    if self.options_box == None:
-      return None
-    else:
-      return self.options_box.get_brush()
-
-  def get_current_model(self):
-    pass
-
-  def get_models(self):
-    pass
-
   def make_new_model(self):
-    model = Model()
-    ##self.options_box.add_brush_change_callback(model.redraw_brush_change)
+    model = Model(self.design_box, self.options_box.get_brush, self.options_box.get_default_brush())
+    self.options_box.add_brush_change_callback(model.redraw_brush_change)
     return model
   def update_design_box(self):
     model = self.options_box.get_model()
