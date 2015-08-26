@@ -40,6 +40,9 @@ class Application(tk.Frame):
 
     self.event_generate('<<Brush>>', state=utils.event_data_register(self.get_brush()))
 
+    # Set focusing properties so the DesignCanvas is usually in focus
+    self.bind_all('<ButtonPress-1>', self.handle_focus, add='+')
+
   def initWidgets(self):
     self.design_box = DesignBox(self)
     self.options_box = OptionsBox(self, self.make_new_model, self.export_data, self.import_data)
@@ -79,6 +82,10 @@ class Application(tk.Frame):
   def get_models(self):
     pass
 
+  def get_clipboard(self):
+    return self.clipboard_layer
+
+
   def make_new_model(self):
     model = Model()
     ##self.options_box.add_brush_change_callback(model.redraw_brush_change)
@@ -109,6 +116,12 @@ class Application(tk.Frame):
   def cancel_operation(self):
     self.design_box.canvas.current_operation.cancel()
     
+  def handle_focus(self, event):
+    focus_allowed = ['Entry']
+    if event.widget.winfo_class() not in focus_allowed:
+      self.design_box.canvas.focus_set()
+    print event.widget.winfo_class(), self.focus_get()
+
 
 
 

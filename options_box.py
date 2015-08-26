@@ -329,20 +329,25 @@ class BrushEditorBox(tk.Frame):
     self.part_color_entry = self.add_field_editor('Particle Color:', self.part_color_var, 1)
     self.body_color_entry = self.add_field_editor('Body Color:', self.body_color_var, 2)
 
+    self.bind_all('<<Brush>>', self.handle_brush_event, add='+')
+    self.part_name_entry.bind('<Any-KeyRelease>', lambda e: self.update_particlespecs(), add='+')
+    self.part_color_entry.bind('<Any-KeyRelease>', lambda e: self.update_particlespecs(), add='+')
+    self.body_color_entry.bind('<Any-KeyRelease>', lambda e: self.update_bodyspecs(), add='+')
+
     # self.get_brush = self.winfo_toplevel().get_brush
     # self.brush_change_callback = callback
 
   def add_field_editor(self, field_name, field_var, row):
     label = tk.Label(self, text = field_name, bg = self['bg'])
     entry = tk.Entry(self, textvariable = field_var)
-    entry.bind('<Any-KeyRelease>', lambda e: self.update_brush())
 
     label.grid(row = row, column = 0, sticky = tk.E)
     entry.grid(row = row, column = 1, sticky = sticky_all)
     return entry
 
-  def update_fields(self):
+  def handle_brush_event(self, event):
     # brush = self.get_brush()
+    brush = utils.event_data_retrieve(event.state)
 
     if brush.particle_specs == None:
       self.part_name_entry['state'] = tk.DISABLED
@@ -360,24 +365,22 @@ class BrushEditorBox(tk.Frame):
       self.body_color_entry['state'] = tk.NORMAL
       self.body_color_var.set(brush.body_specs.color)
 
-  def update_brush(self):
-    def validate_color(color):
-      return re.match(r"^#([0-9A-Za-z]{3}){1,3}$", color)
-    brush = self.get_brush()
-
-    if not validate_color(self.part_color_var.get()) or not validate_color(self.body_color_var.get()):
+  def validate_color(self, color):
+    return re.match(r"^#([0-9A-Fa-f]{3}){1,3}$", color)
+  def update_particlespecs(self):
+    if not self.validate_color(self.part_color_var.get()):
       return
+    name = self.part_name_var.get()
+    color = self.part_color_var.get()
+    key = utils.event_data_register(dict(name = name, color = color))
+    self.event_generate('<<ParticleType>>', state = key)
+  def update_bodyspecs(self):
+    if not self.validate_color(self.body_color_var.get()):
+      return
+    color = self.body_color_var.get()
+    key = utils.event_data_register(dict(color = color))
+    self.event_generate('<<BodyType>>', state = key)
 
-    if brush.particle_specs != None:
-      brush.particle_specs.name = self.part_name_var.get()
-      brush.particle_specs.color = self.part_color_var.get()
-    if brush.body_specs != None:
-      brush.body_specs.color = self.body_color_var.get()
-    
-    #self.brush_change_callback()
-    key = self.event_data_register(brush)
-    self.event_generate('<<Brush>>', state = key)
-    
 
     
 class ButtonList(tk.Frame):

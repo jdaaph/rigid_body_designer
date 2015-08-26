@@ -2,6 +2,8 @@ import Tkinter as tk
 
 import itertools
 
+from copy import deepcopy
+
 import utils
 from model import Model
 from particle import DrawnParticle
@@ -749,6 +751,9 @@ class EditBasicLayer(SelectLayer):
     # Initialize to erasing brush
     self._brush = None
 
+    # For storing copied particles
+    self.clipboard_data = None
+
     ## Add basic event handlers
     # Link virtual events to key-presses (conceivably, we could use different keypresses for Mac/Windows)
     self.canvas.event_add('<<LayerMerge>>', '<Return>')
@@ -762,18 +767,19 @@ class EditBasicLayer(SelectLayer):
     self.canvas.event_add('<<Rotate>>', '<Command-r>')
     self.canvas.event_add('<<Flip>>', '<Command-f>')
 
-    self.add_event_handler(self.running_event_handlers, '<<LayerMerge>>', self.handle_layermerge, 'all')
-    self.add_event_handler(self.running_event_handlers, '<<LayerCancel>>', self.handle_layercancel, 'all')
+    self.add_event_handler(self.running_event_handlers, '<<LayerMerge>>', self.handle_layermerge)
+    self.add_event_handler(self.running_event_handlers, '<<LayerCancel>>', self.handle_layercancel)
     self.add_event_handler(self.running_event_handlers, '<<Paint>>', self.handle_paint)
     self.add_event_handler(self.running_event_handlers, '<<Move>>', self.handle_move)
-    self.add_event_handler(self.running_event_handlers, '<<Undo>>', self.handle_undo, 'all')
-    self.add_event_handler(self.running_event_handlers, '<<Copy>>', self.handle_copy, 'all')
-    self.add_event_handler(self.running_event_handlers, '<<Cut>>', self.handle_cut, 'all')
-    self.add_event_handler(self.running_event_handlers, '<<Paste>>', self.handle_paste, 'all')
-    self.add_event_handler(self.running_event_handlers, '<<Rotate>>', self.handle_rotate, 'all')
-    self.add_event_handler(self.running_event_handlers, '<<Flip>>', self.handle_flip, 'all')
+    self.add_event_handler(self.running_event_handlers, '<<Undo>>', self.handle_undo)
+    self.add_event_handler(self.running_event_handlers, '<<Copy>>', self.handle_copy)
+    self.add_event_handler(self.running_event_handlers, '<<Cut>>', self.handle_cut)
+    self.add_event_handler(self.running_event_handlers, '<<Paste>>', self.handle_paste)
+    self.add_event_handler(self.running_event_handlers, '<<Rotate>>', self.handle_rotate)
+    self.add_event_handler(self.running_event_handlers, '<<Flip>>', self.handle_flip)
 
     self.add_event_handler(self.alive_event_handlers, '<<Brush>>', self.handle_brush_event, 'all')
+    self.add_event_handler(self.alive_event_handlers, '<<Clipboard>>', self.handle_clipboard_event, 'all')
     # self.bind('<Command-r>', self.handle_cmdr)
     # self.bind('<Command-v>', self.handle_cmdv)
     # self.bind('<Command-m>', self.handle_cmdm)
@@ -820,6 +826,10 @@ class EditBasicLayer(SelectLayer):
   def handle_brush_event(self, event):
     self.brush = utils.event_data_retrieve(event.state)
 
+  def handle_clipboard_event(self, event):
+    print 'clipboard'
+    self.clipboard_data = utils.event_data_retrieve(event.state)
+
   def handle_layermerge(self, event):
     print 'layermerge'
     self.canvas.merge_top_layer()
@@ -849,23 +859,6 @@ class EditBasicLayer(SelectLayer):
     startpos = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
     layer = MoveLayer(self.canvas, model, coordinates, startpos = startpos)
     self.canvas.start_layer(layer)
-    '''if self.cur_operation == None:
-      startpos = (event.x, event.y)
-      if self.normal_mode():
-        particles = self.selected
-      else:
-        particles = self.cut
-      self.cur_operation = MCO_Move(self, particles, startpos = startpos)
-
-    self.cur_operation.set_duplicating(event.state & MOD_SHIFT)
-    self.cur_operation.drag((event.x, event.y))
-    self.update()'''
-
-  #def handle_moveend(self, event):
-  #  print 'moveend'
-  #  '''self.cur_operation.set_duplicating(event.state & MOD_SHIFT)
-  #  self.apply_current_operation()
-  #  self.update()'''
 
   def handle_undo(self, event):
     print 'undo'
@@ -884,9 +877,21 @@ class EditBasicLayer(SelectLayer):
 
   def handle_copy(self, event):
     print 'copy'
+    model = Model(grid_type = self.model.grid.grid_type)
+    model.particles = [p.model_particle for p in self.selected if p.in_model]
+    coordinates = [p.gridcoord for p in self.selected]
+    key = utils.event_data_register(dict(model = model, coordinates = coordinates))
+    self.canvas.event_generate('<<Clipboard>>', state = key)
+
 
   def handle_paste(self, event):
     print 'paste'
+    if self.clipboard_data == None:  return
+    model = deepcopy(self.clipboard_data['model'])
+    coordinates = deepcopy(self.clipboard_data['coordinates'])
+    layer = EditBasicLayer(self.canvas, model, coordinates)
+    layer.brush = self._brush
+    self.canvas.start_layer(layer)
 
   def handle_rotate(self, event):
     print 'rotate'
