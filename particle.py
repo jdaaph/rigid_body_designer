@@ -3,12 +3,12 @@ from copy import deepcopy
 
 
 class Particle(object):
-  grid_coord = None
+  gridcoord = None
 
   particle_specs = None
   body_specs = None
-  def __init__(self, grid_coord, particle_specs, body_specs):
-    self.grid_coord = grid_coord
+  def __init__(self, gridcoord, particle_specs, body_specs):
+    self.gridcoord = gridcoord
 
     self.particle_specs = particle_specs
     self.body_specs = body_specs
@@ -20,7 +20,7 @@ class Particle(object):
 #    return new_par
 
   def __deepcopy__(self, memo):
-    gc_copy = deepcopy(self.grid_coord, memo)
+    gc_copy = deepcopy(self.gridcoord, memo)
     pspecs_copy = deepcopy(self.particle_specs, memo)
     bspecs_copy = deepcopy(self.body_specs, memo)
     return Particle(gc_copy, pspecs_copy, bspecs_copy)
@@ -54,7 +54,7 @@ class DrawnParticle(object):
     assert (self._particle!=None) == self.in_model
     self._gridcoord = gc
     if self.in_model:
-      self._particle.grid_coord = gc
+      self._particle.gridcoord = gc
 
   @property
   def particle_specs(self):

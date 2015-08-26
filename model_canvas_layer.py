@@ -328,7 +328,7 @@ class ViewLayer(ModelCanvasLayer):
     """ Returns the bounding box for the model + padding. """
     if self.model == None or len(self.model.particles) == 0:
       return None
-    box = self.model.grid.grid_coord_to_pixel_bbox(self.model.calc_bbox(), self.diameter)
+    box = self.model.grid.gridcoord_to_pixel_bbox(self.model.calc_bbox(), self.diameter)
     pix_padding = self.padding * self.diameter
     x1,y1,x2,y2 = box
     return (x1 - pix_padding, y1 - pix_padding, x2 + pix_padding, y2 + pix_padding)
@@ -529,7 +529,7 @@ class ViewLayer(ModelCanvasLayer):
     coords(oval_id, *coords) """
     ## Calculate shape location
     diameter = self.diameter
-    canvas_x0, canvas_y0 = self.model.grid.grid_coord_to_pixel(p.gridcoord, diameter)
+    canvas_x0, canvas_y0 = self.model.grid.gridcoord_to_pixel(p.gridcoord, diameter)
     canvas_x1 = canvas_x0 + diameter
     canvas_y1 = canvas_y0 + diameter
     return (canvas_x0, canvas_y0, canvas_x1, canvas_y1)
@@ -716,7 +716,7 @@ class SelectLayer(ViewLayer):
   #### Event handlers
   def handle_leftpress(self, event):
     canvaspixel = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
-    gridcoord = self.model.grid.pixel_to_grid_coord(canvaspixel, self.diameter)
+    gridcoord = self.model.grid.pixel_to_gridcoord(canvaspixel, self.diameter)
     if self.point_hidden(gridcoord):
       self.clear_selection()
     else:
@@ -725,7 +725,7 @@ class SelectLayer(ViewLayer):
         self.new_selection([particle])
   def handle_rightpress(self, event):
     canvaspixel = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
-    gridcoord = self.model.grid.pixel_to_grid_coord(canvaspixel, self.diameter)
+    gridcoord = self.model.grid.pixel_to_gridcoord(canvaspixel, self.diameter)
     if self.point_hidden(gridcoord):
       self.clear_selection()
     else:
@@ -840,7 +840,7 @@ class EditBasicLayer(SelectLayer):
 
   def handle_paint(self, event):
     pos = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
-    gridcoord = self.model.grid.pixel_to_grid_coord(pos, self.diameter)
+    gridcoord = self.model.grid.pixel_to_gridcoord(pos, self.diameter)
     if self.point_hidden(gridcoord):
       return
     particle = self.get_particle_at(gridcoord)
@@ -908,7 +908,7 @@ class EditBackgroundLayer(EditBasicLayer):
   def update_view_scroll(self):
     EditBasicLayer.update_view_scroll(self)
     
-    box = self.model.grid.pixel_to_grid_coord_bbox(self.scrollable_bbox, self.diameter)
+    box = self.model.grid.pixel_to_gridcoord_bbox(self.scrollable_bbox, self.diameter)
     self.points |= set(self.model.grid.points_iterator(box))
     self.add_particles_at(self.points)
 
@@ -1063,8 +1063,8 @@ class MoveLayer(SelectLayer):
 
     startpos = self._startpos
     finalpos = (startpos[0] + self._offset[0], startpos[1] + self._offset[1])
-    startpos_rounded = grid.grid_coord_to_pixel(grid.pixel_to_grid_coord(startpos, diameter), diameter)
-    finalpos_rounded = grid.grid_coord_to_pixel(grid.pixel_to_grid_coord(finalpos, diameter), diameter)
+    startpos_rounded = grid.gridcoord_to_pixel(grid.pixel_to_gridcoord(startpos, diameter), diameter)
+    finalpos_rounded = grid.gridcoord_to_pixel(grid.pixel_to_gridcoord(finalpos, diameter), diameter)
     offset = (finalpos_rounded[0] - startpos_rounded[0], finalpos_rounded[1] - startpos_rounded[1])
     return offset
 
@@ -1072,8 +1072,8 @@ class MoveLayer(SelectLayer):
     diameter = self.diameter
     grid = self.model.grid
 
-    old_pos = grid.grid_coord_to_pixel(p.gridcoord, diameter)
+    old_pos = grid.gridcoord_to_pixel(p.gridcoord, diameter)
     new_pos = (old_pos[0] + offset[0], old_pos[1] + offset[1])
-    new_gc = grid.pixel_to_grid_coord(new_pos, diameter)
+    new_gc = grid.pixel_to_gridcoord(new_pos, diameter)
     p.gridcoord = new_gc
 

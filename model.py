@@ -27,12 +27,12 @@ class Model(object):
   
   _particles = None
 
-  grid_coord_to_particle = None
+  gridcoord_to_particle = None
 
   def __init__(self, grid_type = grid.GRID_SQUARE):
     ## Initialize to having no particles in model
     self._particles = set([])
-    self.grid_coord_to_particle = dict()
+    self.gridcoord_to_particle = dict()
 
     ## Initialize grid
     self.init_grid(grid_type)
@@ -44,13 +44,13 @@ class Model(object):
   @particles.setter
   def particles(self, new_particles):
     self._particles.clear()
-    self.grid_coord_to_particle.clear()
+    self.gridcoord_to_particle.clear()
 
     for new_p in new_particles:
-      self.add_particle(new_p.grid_coord, new_p.particle_specs, new_p.body_specs)
+      self.add_particle(new_p.gridcoord, new_p.particle_specs, new_p.body_specs)
 
   def points_iterator(self):
-    return iter([p.grid_coord for p in self._particles])
+    return iter([p.gridcoord for p in self._particles])
 
   @property
   def grid(self):
@@ -63,45 +63,45 @@ class Model(object):
     else:
       assert False, "Grid type {0} not supported.".format(grid_type)
 
-  def add_particle(self, grid_coord, particle_specs, body_specs):
+  def add_particle(self, gridcoord, particle_specs, body_specs):
     """ Add a new particle to the model with the given ParticleSpecs and BodySpecs objects.
     If there is already a particle at this coordinate, the existing particle's particle
     and body types are set to the given ParticleSpecs and BodySpecs objects.  """
-    if not self.has_particle(grid_coord):
-      particle = Particle(grid_coord, particle_specs, body_specs)
-      self.grid_coord_to_particle[grid_coord] = particle
+    if not self.has_particle(gridcoord):
+      particle = Particle(gridcoord, particle_specs, body_specs)
+      self.gridcoord_to_particle[gridcoord] = particle
       self._particles.add(particle)
     else:
-      particle = self.grid_coord_to_particle[grid_coord]
+      particle = self.gridcoord_to_particle[gridcoord]
       particle.particle_specs = particle_specs
       particle.body_specs = body_specs
     return particle
-  def set_particle(self, grid_coord, particle):
+  def set_particle(self, gridcoord, particle):
     """ Sets the particle at the given grid location to be the given particle.
     If an existing particle is at this location, it is removed. """
     assert particle != None
-    self.remove_particle(grid_coord)
-    self.grid_coord_to_particle[grid_coord] = particle
+    self.remove_particle(gridcoord)
+    self.gridcoord_to_particle[gridcoord] = particle
     self._particles.add(particle)
-  def remove_particle(self, grid_coord):
+  def remove_particle(self, gridcoord):
     """ Remove a given particle from the model, if it is in there.
     This method does nothing if the particle was not in the model """
-    if self.has_particle(grid_coord):
-      p = self.grid_coord_to_particle[grid_coord]
-      del self.grid_coord_to_particle[grid_coord]
+    if self.has_particle(gridcoord):
+      p = self.gridcoord_to_particle[gridcoord]
+      del self.gridcoord_to_particle[gridcoord]
       self._particles.remove(p)
-  def has_particle(self, grid_coord):
+  def has_particle(self, gridcoord):
     """ Returns True iff there is a particle in the model at the given grid coordinate. """
-    return grid_coord in self.grid_coord_to_particle
+    return gridcoord in self.gridcoord_to_particle
 
-  def get_particle(self, grid_coord):
+  def get_particle(self, gridcoord):
     """ Returns the associated particle at this location, or None if none exists. """
-    if self.has_particle(grid_coord):
-      return self.grid_coord_to_particle[grid_coord]
+    if self.has_particle(gridcoord):
+      return self.gridcoord_to_particle[gridcoord]
     else:
       return None
 
-  def calc_connected_body_particles(self, grid_coord):
+  def calc_connected_body_particles(self, gridcoord):
     '''returns a list of particles in the same body as particle'''
     body = particle.body_specs
     buddies = []
@@ -111,4 +111,4 @@ class Model(object):
     return buddies
 
   def calc_bbox(self):
-    return self.grid.calc_bbox([p.grid_coord for p in self._particles])
+    return self.grid.calc_bbox([p.gridcoord for p in self._particles])
