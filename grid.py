@@ -76,3 +76,23 @@ class SquareGrid(object):
     x, y = gridcoord
     min_x, min_y, max_x, max_y = gc_bbox
     return min_x <= x < max_x and min_y <= y < max_y
+
+  ### Grid coordinate manipulation
+  def rotate_gridcoords(self, gridcoords, axis, steps = 1):
+    steps = steps % 4
+    axis_x, axis_y = axis
+
+    mapping = {}
+    for gc in gridcoords:
+      x, y = gc
+      dx = x - axis_x 
+      dy = y - axis_y
+      if steps == 1:
+        dx, dy = dy, -dx
+      elif steps == 2:
+        dx, dy = -dx, -dy
+      elif steps == 3:
+        dx, dy = -dy, dx
+      mapping[gc] = (axis_x + dx, axis_y + dy)
+    return mapping
+    

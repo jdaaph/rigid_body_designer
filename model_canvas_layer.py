@@ -254,7 +254,7 @@ class ViewLayer(ModelCanvasLayer):
     if points != None:  self.points = set(points)
     elif model != None:  self.points = set(model.particles)
     else:  self.points = set([])
-    self._init_points = self.points
+    self._init_points = frozenset(self.points)
 
     # Set up dict to map between drawn particles and grid coordinates
     self._gridcoord_to_particle = dict()
@@ -448,6 +448,9 @@ class ViewLayer(ModelCanvasLayer):
     p = DrawnParticle(gridcoord = gridcoord, oval_id = oval_id, model_particle = model_p)
     self._gridcoord_to_particle[gridcoord] = p
     return p
+  def remove_particle_at(self, gridcoord):
+    self.model.remove_particle(gridcoord)
+    self.points.remove(gridcoord)
   def get_particle_at(self, gridcoord):
     return self._gridcoord_to_particle[gridcoord]
   def set_particle_at(self, gridcoord, p):
@@ -457,6 +460,7 @@ class ViewLayer(ModelCanvasLayer):
       self.model.remove_particle(gridcoord)
     else:
       self.model.set_particle(gridcoord, old.model_particle)
+    self.points.add(gridcoord)
     self.mark_dirty([old])
   def add_particles_at(self, gridcoords):
     """ Checks the list of grid coordinates, adding any that have not yet been drawn.
@@ -468,6 +472,10 @@ class ViewLayer(ModelCanvasLayer):
         particles.append(self.add_particle_at(gridcoord))
     self.mark_dirty(particles)
     if len(particles) > 0:  print 'added', len(particles), 'new particles'
+  def remove_particles_at(self, gridcoords):
+    for gridcoord in set(gridcoords):
+      self.remove_particle_at(gridcoord)
+
 
 
   def get_dirty(self):
@@ -628,9 +636,11 @@ class SelectLayer(ViewLayer):
   #### Selection utilities
   def new_selection(self, particles, append = False):
     if append:
-      self.selected += set(particles)
+      self.selected |= set(particles)
     else:
       self.selected = set(particles)
+  def remove_selection(self, particles):
+    self.selected -= set(particles)
   def box_selection(self, particles, append = False):
     box = self.model.grid.calc_bbox([p.gridcoord for p in particles])
     box_particles = set([self.get_particle_at(gc) for gc in self.model.grid.points_iterator(box) if not self.point_hidden(gc)])
@@ -653,35 +663,13 @@ class SelectLayer(ViewLayer):
   def clear_selection(self):
     self.new_selection([])
 
-  def merge(self, layer):
-    start_gc = set(layer.start_coordinates())
-    finish_gc = set(layer.finish_coordinates())
-    dirty_gc = start_gc | finish_gc
-    
-    # Transfer information at these locations from the merged layer
-    # Remove particles that have been removed during operation
-    self.points -= set(layer.start_coordinates())
-    for gc in start_gc - finish_gc:
-      self.model.remove_particle(gc)
-    # Add particles in the final operation state
-    self.points |= finish_gc
-    for gc in finish_gc:
-      model_p = layer.model.get_particle(gc)
-      p = DrawnParticle(gridcoord = gc, oval_id = None, model_particle = model_p)
-      self.set_particle_at(gc, p)
-      #print gc, model_p
+  def start(self):
+    ViewLayer.start(self)
 
-    # Transfer the selection to the parent layer
-    if isinstance(layer, SelectLayer):
-      selected_gc = set([p.gridcoord for p in layer.selected])
-      dirty_gc |= selected_gc
-      self.add_particles_at(selected_gc)
-      self.selected = set([self.get_particle_at(gc) for gc in selected_gc])
-      
-    key = utils.event_data_register(dict(model = self.model, dirty_gridcoords = dirty_gc))
-    self.canvas.event_generate('<<Model>>', state = key, when = 'tail')
-
-    print 'particles changed in merge:',len(dirty_gc)
+    self.add_particles_at(self.points)
+    self.new_selection([self.get_particle_at(gc) for gc in self.points])
+    print self.points, self.selected
+    self.canvas.update_layer(self)
 
 
   #### Drawing functionality
@@ -695,6 +683,10 @@ class SelectLayer(ViewLayer):
       oval_id = p.oval_id
       self.canvas.tag_raise(oval_id, 'particle')
 
+  def remove_particle_at(self, gridcoord):
+    ViewLayer.remove_particle_at(self, gridcoord)
+    if self.point_selected(gridcoord):
+      self.remove_selection([self.get_particle_at(gridcoord)])
 
 
   #### Particle information
@@ -758,8 +750,8 @@ class EditBasicLayer(SelectLayer):
     # Link virtual events to key-presses (conceivably, we could use different keypresses for Mac/Windows)
     self.canvas.event_add('<<LayerMerge>>', '<Return>')
     self.canvas.event_add('<<LayerCancel>>', '<Escape>')
-    self.canvas.event_add('<<Paint>>', '<ButtonRelease-1>')
-    self.canvas.event_add('<<Move>>', '<B1-Motion>')
+    self.canvas.event_add('<<Paint>>', '<ButtonPress-1><ButtonRelease-1>')
+    self.canvas.event_add('<<Move>>', '<ButtonPress-1><B1-Motion>')
     self.canvas.event_add('<<Undo>>', '<Command-z>')
     self.canvas.event_add('<<Copy>>', '<Command-c>')
     self.canvas.event_add('<<Cut>>', '<Command-x>')
@@ -796,6 +788,35 @@ class EditBasicLayer(SelectLayer):
   @brush.setter
   def brush(self, brush):
     self._brush = brush
+
+  #### Layer functionality
+
+  def merge(self, layer):
+    start_gc = set(layer.start_coordinates())
+    finish_gc = set(layer.finish_coordinates())
+    dirty_gc = start_gc | finish_gc
+    
+    # Transfer information at these locations from the merged layer
+    self.remove_particles_at(start_gc)
+    # Add particles in the final operation state
+    self.points |= finish_gc
+    for gc in finish_gc:
+      model_p = layer.model.get_particle(gc)
+      p = DrawnParticle(gridcoord = gc, oval_id = None, model_particle = model_p)
+      self.set_particle_at(gc, p)
+      #print gc, model_p
+
+    # Transfer the selection to the parent layer
+    if isinstance(layer, SelectLayer):
+      selected_gc = set([p.gridcoord for p in layer.selected])
+      dirty_gc |= selected_gc
+      self.add_particles_at(selected_gc)
+      self.selected = set([self.get_particle_at(gc) for gc in selected_gc])
+      
+    key = utils.event_data_register(dict(model = self.model, dirty_gridcoords = dirty_gc))
+    self.canvas.event_generate('<<Model>>', state = key, when = 'tail')
+
+    print 'particles changed in merge:',len(dirty_gc)
 
   #### Model editing functions
   def apply_brush(self, brush, particles):
@@ -853,9 +874,7 @@ class EditBasicLayer(SelectLayer):
 
   def handle_move(self, event):
     print 'move'
-    model = Model(grid_type = self.model.grid.grid_type)
-    model.particles = [p.model_particle for p in self.selected if p.in_model]
-    coordinates = [p.gridcoord for p in self.selected]
+    model, coordinates = self.get_operation_particles()
     startpos = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
     layer = MoveLayer(self.canvas, model, coordinates, startpos = startpos)
     self.canvas.start_layer(layer)
@@ -867,9 +886,7 @@ class EditBasicLayer(SelectLayer):
     print 'cut'
     if len(self.selected) == 0:
       return
-    model = Model(grid_type = self.model.grid.grid_type)
-    model.particles = [p.model_particle for p in self.selected if p.in_model]
-    coordinates = [p.gridcoord for p in self.selected]
+    model, coordinates = self.get_operation_particles()
     layer = EditBasicLayer(self.canvas, model, coordinates)
     layer.brush = self._brush
     self.canvas.start_layer(layer)
@@ -877,9 +894,9 @@ class EditBasicLayer(SelectLayer):
 
   def handle_copy(self, event):
     print 'copy'
-    model = Model(grid_type = self.model.grid.grid_type)
-    model.particles = [p.model_particle for p in self.selected if p.in_model]
-    coordinates = [p.gridcoord for p in self.selected]
+    if len(self.selected) == 0:
+      return
+    model, coordinates = self.get_operation_particles()
     key = utils.event_data_register(dict(model = model, coordinates = coordinates))
     self.canvas.event_generate('<<Clipboard>>', state = key)
 
@@ -889,15 +906,32 @@ class EditBasicLayer(SelectLayer):
     if self.clipboard_data == None:  return
     model = deepcopy(self.clipboard_data['model'])
     coordinates = deepcopy(self.clipboard_data['coordinates'])
-    layer = EditBasicLayer(self.canvas, model, coordinates)
+    layer = PasteLayer(self.canvas, model, coordinates)
     layer.brush = self._brush
     self.canvas.start_layer(layer)
 
   def handle_rotate(self, event):
     print 'rotate'
+    steps = -1 if event.state & MOD_SHIFT else 1
+    model, coordinates = self.get_operation_particles()
+    layer = RotateLayer(self.canvas, model, coordinates, steps = steps)
+    layer.brush = self._brush
+    self.canvas.start_layer(layer)
+    
 
   def handle_flip(self, event):
     print 'flip'
+  
+  def get_operation_particles(self):
+    model = Model(grid_type = self.model.grid.grid_type)
+    if len(self.selected) > 0:
+      model.particles = [p.model_particle for p in self.selected if p.in_model]
+      coordinates = [p.gridcoord for p in self.selected]
+    else:
+      model.particles = list(self.model.particles)
+      coordinates = list(self.points)
+    return model, coordinates
+
 
 
 class EditBackgroundLayer(EditBasicLayer):
@@ -924,6 +958,16 @@ class EditBackgroundLayer(EditBasicLayer):
   def handle_layercancel(self, event):
     pass
 
+  def get_operation_particles(self):
+    model = Model(grid_type = self.model.grid.grid_type)
+    if len(self.selected) > 0:
+      model.particles = [p.model_particle for p in self.selected if p.in_model]
+      coordinates = [p.gridcoord for p in self.selected]
+    else:
+      model.particles = list(self.model.particles)
+      coordinates = [p.gridcoord for p in model.particles]
+    return model, coordinates
+
 class MoveLayer(SelectLayer):
 
   def __init__(self, canvas, model, points, startpos, **kargs):
@@ -942,6 +986,8 @@ class MoveLayer(SelectLayer):
 
     self.add_event_handler(self.running_event_handlers, '<B1-Motion>', self.handle_drag)
     self.add_event_handler(self.running_event_handlers, '<ButtonRelease-1>', self.handle_release)
+    self.add_event_handler(self.running_event_handlers, '<Any-KeyPress>', self.handle_key)
+    self.add_event_handler(self.running_event_handlers, '<Any-KeyRelease>', self.handle_key)
 
   def set_model(self, model):
     assert False, "Cannot set the model of a MoveLayer after instantiation"
@@ -1041,16 +1087,24 @@ class MoveLayer(SelectLayer):
     posy = self.canvas.canvasy(event.y)
     self._offset = (posx - self._startpos[0], posy - self._startpos[1])
     
-    self._set_duplicating(event.state & MOD_SHIFT)
+    #self._set_duplicating(event.state & MOD_SHIFT)
 
     self.mark_dirty(self.moving_particles_iterator())
     self.canvas.update_layer(self)
 
   def handle_release(self, event):
+    #self._set_duplicating(event.state & MOD_SHIFT)
     if self._offset == (0, 0):
       self.canvas.cancel_top_layer()
     else:
       self.canvas.merge_top_layer()
+
+  def handle_key(self, event):
+    if event.keysym == 'Escape':
+      self.canvas.cancel_top_layer()
+    else:
+      self._set_duplicating(event.state & MOD_SHIFT)
+      self.canvas.update_layer(self)
 
   def _set_duplicating(self, duplicating):
     if self._duplicating != duplicating:
@@ -1077,3 +1131,56 @@ class MoveLayer(SelectLayer):
     new_gc = grid.pixel_to_gridcoord(new_pos, diameter)
     p.gridcoord = new_gc
 
+class PasteLayer(EditBasicLayer):
+
+  def __init__(self, canvas, model, points, **kargs):
+    EditBasicLayer.__init__(self, canvas, model, points, **kargs)
+
+  def set_model(self, model):
+    assert False, "Cannot set the model of a PasteLayer after instantiation"
+
+  ## start(), pause(), resume() inherited from EditBasicLayer
+
+  def start_coordinates(self):
+    return []
+
+  ## finish(), cancel(), clean(), update() inherited from EditBasicLayer
+
+class RotateLayer(EditBasicLayer):
+
+  def __init__(self, canvas, model, points, steps = 1, **kargs):
+    EditBasicLayer.__init__(self, canvas, model, points, **kargs)
+
+    self._steps = steps
+
+  def set_model(self, model):
+    assert False, "Cannot set the model of a RotateLayer after instantiation"
+
+  ## start(), pause(), resume() inherited from EditBasicLayer
+
+  def start(self):
+    EditBasicLayer.start(self)
+
+    grid = self.model.grid
+    box = grid.gridcoord_to_pixel_bbox(grid.calc_bbox(self.points), self.diameter)
+    center_pixel = (int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2))
+    center_gc = grid.pixel_to_gridcoord(center_pixel, self.diameter)
+    mapping = grid.rotate_gridcoords(self.points, center_gc, self._steps)
+    print center_gc, mapping
+    
+    old_particles = {gc: deepcopy(self.get_particle_at(gc)) for gc in self.points}
+    old_selection = set([p.gridcoord for p in self.selected])
+
+    self.remove_particles_at(self.points)
+    for old_gc, new_gc in mapping.iteritems():
+      self.set_particle_at(new_gc, old_particles[old_gc])
+      if old_gc in old_selection:
+        self.new_selection([self.get_particle_at(new_gc)], append = True)
+
+    self.canvas.update_layer(self)
+    #self.canvas.merge_top_layer()
+
+  def finish(self):
+    EditBasicLayer.finish(self)
+
+  ## cancel(), clean(), update() inherited from EditBasicLayer

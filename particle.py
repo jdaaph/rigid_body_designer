@@ -39,6 +39,8 @@ class DrawnParticle(object):
   @model_particle.setter
   def model_particle(self, p):
     self._particle = deepcopy(p)
+    if self._particle != None:
+      self._particle.gridcoord = self._gridcoord
     #self.in_model = p != None
     assert (self._particle!=None) == self.in_model
 
