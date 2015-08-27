@@ -601,7 +601,7 @@ class ViewLayer(ModelCanvasLayer):
       if self.model != event_data['model']:  return
       dirty_gridcoords = event_data['dirty_gridcoords']
     else:
-      dirty_gridcoords = list(self.points_iterator())
+      dirty_gridcoords = set(self.points_iterator()) | set(self.model.points_iterator())
     print 'modelevent', repr(self)
 
     self.points -= set(filter(lambda gc: not self.model.has_particle(gc), dirty_gridcoords))
@@ -715,6 +715,11 @@ class SelectLayer(ViewLayer):
     return params
 
   #### Event handlers
+  def handle_model_event(self, event):
+    points = set(self.points)
+    ViewLayer.handle_model_event(self, event)
+    self.points = points
+
   def handle_leftpress(self, event):
     canvaspixel = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
     gridcoord = self.model.grid.pixel_to_gridcoord(canvaspixel, self.diameter)
@@ -957,10 +962,10 @@ class EditBackgroundLayer(EditBasicLayer):
 
   def update_view_scroll(self):
     EditBasicLayer.update_view_scroll(self)
-    
-    box = self.model.grid.pixel_to_gridcoord_bbox(self.scrollable_bbox, self.diameter)
-    self.points |= set(self.model.grid.points_iterator(box))
-    self.add_particles_at(self.points)
+    if self.model != None:
+      box = self.model.grid.pixel_to_gridcoord_bbox(self.scrollable_bbox, self.diameter)
+      self.points |= set(self.model.grid.points_iterator(box))
+      self.add_particles_at(self.points)
 
 
   #### Particle information

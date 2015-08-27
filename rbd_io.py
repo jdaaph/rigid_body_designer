@@ -15,11 +15,12 @@ def transform_particle_positions(model, offset_x, offset_y, angle = 0):
   diameter = 1
 
   particles = model.particles
-  particle_grid_coords = [p.grid_coord for p in particles]
-  bbox = model.canvas_grid.calc_pixel_bounding_box(particle_grid_coords, diameter)
+  gridcoords = [p.gridcoord for p in particles]
+  grid = model.grid
+  bbox = grid.gridcoord_to_pixel_bbox(grid.calc_bbox(gridcoords), diameter)
   if bbox == None:  return None
 
-  particle_pixel_coords = [model.canvas_grid.grid_coord_to_pixel(coord, diameter) for coord in particle_grid_coords]
+  particle_pixel_coords = [grid.gridcoord_to_pixel(gc, diameter) for gc in gridcoords]
   particle_pos = [(x - bbox[0], y - bbox[1]) for x,y in particle_pixel_coords]
 
   cosine = math.cos(angle)
@@ -44,7 +45,8 @@ def calc_model_lattice_positions(models, copies):
   tot_area = 0
   model_sizes = dict()
   for model, num_copies in zip(models, copies):
-    bbox = model.canvas_grid.calc_pixel_bounding_box([p.grid_coord for p in model.particles], diameter)
+    grid = model.grid
+    bbox = grid.gridcoord_to_pixel_bbox(grid.calc_bbox(list(model.points_iterator())), diameter)
     model_width = bbox[2] - bbox[0]
     model_height = bbox[3] - bbox[1]
     model_sizes[model] = (model_width, model_height)
@@ -135,14 +137,15 @@ def export_rbd(path, models, particle_specs, body_specs):
     out.write('<body_specs index="{0}" color="{1}" />\n'.format(i, b_specs.color))
   for i, model in enumerate(models):
     particles = model.particles
-    grid_type = model.grid_type
-    box = model.canvas_grid.calc_bounding_box([p.grid_coord for p in particles])
+    grid = model.grid
+    grid_type = grid.grid_type
+    box = grid.calc_bbox([p.gridcoord for p in particles])
     out.write('<model index="{0}" grid_type="{1}" bbox="{2}">\n'.format(i, grid_type, box))
     for particle in particles:
-      grid_coord = particle.grid_coord
+      gridcoord = particle.gridcoord
       p_specs = particle.particle_specs.name
       b_specs = particle.body_specs.idx
-      out.write('<particle grid_coord="{0}" particle_specs="{1}" body_specs="{2}" />\n'.format(grid_coord, p_specs, b_specs))
+      out.write('<particle grid_coord="{0}" particle_specs="{1}" body_specs="{2}" />\n'.format(gridcoord, p_specs, b_specs))
     out.write('</model>\n')
   out.write('</rbd>\n')
 
@@ -171,24 +174,24 @@ def import_rbd(path, rbd):
       model_data.append(int(attr['grid_type']))
       model_particles.append([])
     elif name == 'particle':
-      grid_coord = eval(attr['grid_coord'])
+      gridcoord = eval(attr['grid_coord'])
       particle_specs = particle_specs_dict[attr['particle_specs']]
       body_specs = body_specs_dict[attr['body_specs']]
-      model_particles[-1].append(Particle(grid_coord = grid_coord, shape_id = -1, particle_specs = particle_specs, body_specs = body_specs))
+      model_particles[-1].append(Particle(gridcoord = gridcoord, particle_specs = particle_specs, body_specs = body_specs))
 
   design_box = rbd.design_box
-  options_box = rbd.options_box
+  tool_box = rbd.tool_box
 
   p = xml.parsers.expat.ParserCreate()
   p.StartElementHandler = process_node_start
   p.ParseFile(open(path, 'r'))
 
-  options_box.tool_box.set_particle_specs(particle_specs)
-  options_box.tool_box.set_body_specs(body_specs)
+  tool_box.set_particle_specs(particle_specs)
+  tool_box.set_body_specs(body_specs)
 
   models = []
   for data, particles in zip(model_data, model_particles):  
-    m = Model(design_box, options_box.get_brush, options_box.get_default_brush(), grid_type = data)
-    m.set_particles(particles)
+    m = Model(grid_type = data)
+    m.particles = particles
     models.append(m)
-  options_box.models_box.set_models(models)
+  tool_box.set_models(models)

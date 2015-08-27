@@ -11,6 +11,7 @@ class Brush(object):
     def __init__(self, name, color):
       self.name = name
       self.color = color
+    
   class BodySpecs(object):
     idx = None
     color = None
