@@ -6,7 +6,7 @@ from copy import deepcopy
 
 import utils
 from model import Model
-from particle import DrawnParticle
+from particle import Particle, DrawnParticle
 
 MOD_SHIFT = 0x1
 MOD_MACCTRL = 0x4 # Mac 'control' key
@@ -252,9 +252,10 @@ class ViewLayer(ModelCanvasLayer):
 
     # Set up set of points (grid coords) drawn in this layer
     if points != None:  self.points = set(points)
-    elif model != None:  self.points = set(model.particles)
+    elif model != None:  self.points = set([p.gridcoord for p in model.particles])
     else:  self.points = set([])
     self._init_points = frozenset(self.points)
+    #assert all([not isinstance(p, Particle) for p in self.points]), '__init__(): invalid points given'
 
     # Set up dict to map between drawn particles and grid coordinates
     self._gridcoord_to_particle = dict()
@@ -267,7 +268,8 @@ class ViewLayer(ModelCanvasLayer):
 
     self.viewmode = viewmode
 
-    self.canvas['scrollregion'] = (0, 0, 0, 0)
+    if self.canvas['scrollregion'] == '':
+      self.canvas['scrollregion'] = (0, 0, 0, 0)
     
     self.add_event_handler(self.alive_event_handlers, '<Configure>', self.handle_resize)
     self.add_event_handler(self.alive_event_handlers, '<<Model>>', self.handle_model_event, 'all')
@@ -284,7 +286,7 @@ class ViewLayer(ModelCanvasLayer):
     return self._model
   def set_model(self, model):
     self._model = model
-    if model != None:  self.points |= set(model.particles)
+    if model != None:  self.points |= set(model.points_iterator())
     if self.started and model != None:
       self.add_particles_at(self.points_iterator())
       new_particles = set([self.get_particle_at(gc) for gc in self.points_iterator()])
@@ -505,6 +507,7 @@ class ViewLayer(ModelCanvasLayer):
 
   def points_iterator(self):
     """ Returns an iterator over all points in the model."""
+    #assert all([not isinstance(p, Particle) for p in self.points]), 'points_iterator(): invalid points given'
     return iter(self.points)
   def particles_iterator(self):
     """ Returns an iterator over all particles being drawn in this layer.
@@ -599,7 +602,10 @@ class ViewLayer(ModelCanvasLayer):
       dirty_gridcoords = event_data['dirty_gridcoords']
     else:
       dirty_gridcoords = list(self.points_iterator())
+    print 'modelevent', repr(self)
 
+    self.points -= set(filter(lambda gc: not self.model.has_particle(gc), dirty_gridcoords))
+    self.points |= set(filter(lambda gc: self.model.has_particle(gc), dirty_gridcoords))
     self.add_particles_at(dirty_gridcoords)
     dirty_particles = [self.get_particle_at(gc) for gc in dirty_gridcoords if self.point_drawn(gc)]
     print 'updating', len(dirty_particles), 'dirty particles of', len(dirty_gridcoords), 'dirty gridcoords'
@@ -616,14 +622,18 @@ class SelectLayer(ViewLayer):
     # Initialize to empty selection
     self._selected = set([]) # Currently selected particles
 
+    ## Define events
+    self.canvas.event_add('<<SelectAll>>', '<Command-a>')
+
     ## Add basic event handlers
     self.add_event_handler(self.running_event_handlers, '<ButtonPress-1>', self.handle_leftpress)
     self.add_event_handler(self.running_event_handlers, '<ButtonPress-2>', self.handle_rightpress)
+    self.add_event_handler(self.running_event_handlers, '<<SelectAll>>', self.handle_selectall)
 
   #### Selection info
 
-  def set_model(self, model):
-    ViewLayer.set_model(self, model)
+  #def set_model(self, model):
+  #  ViewLayer.set_model(self, model)
 
   @property
   def selected(self):
@@ -668,7 +678,6 @@ class SelectLayer(ViewLayer):
 
     self.add_particles_at(self.points)
     self.new_selection([self.get_particle_at(gc) for gc in self.points])
-    print self.points, self.selected
     self.canvas.update_layer(self)
 
 
@@ -718,6 +727,7 @@ class SelectLayer(ViewLayer):
   def handle_rightpress(self, event):
     canvaspixel = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
     gridcoord = self.model.grid.pixel_to_gridcoord(canvaspixel, self.diameter)
+    #print canvaspixel, gridcoord
     if self.point_hidden(gridcoord):
       self.clear_selection()
     else:
@@ -728,6 +738,12 @@ class SelectLayer(ViewLayer):
         self.box_selection(list(self.selected) + [particle])
       else:
         self.new_selection([particle])
+
+    self.canvas.update_layer(self)
+
+  def handle_selectall(self, event):
+    self.add_particles_at(self.points)
+    self.new_selection([self.get_particle_at(gc) for gc in self.points])
 
     self.canvas.update_layer(self)
 
@@ -957,6 +973,10 @@ class EditBackgroundLayer(EditBasicLayer):
     pass
   def handle_layercancel(self, event):
     pass
+  def handle_selectall(self, event):
+    self.add_particles_at(self.model.points_iterator())
+    self.new_selection([self.get_particle_at(gc) for gc in self.model.points_iterator()])
+    self.canvas.update_layer(self)
 
   def get_operation_particles(self):
     model = Model(grid_type = self.model.grid.grid_type)
@@ -1087,13 +1107,13 @@ class MoveLayer(SelectLayer):
     posy = self.canvas.canvasy(event.y)
     self._offset = (posx - self._startpos[0], posy - self._startpos[1])
     
-    #self._set_duplicating(event.state & MOD_SHIFT)
+    self._set_duplicating(event.state & MOD_SHIFT)
 
     self.mark_dirty(self.moving_particles_iterator())
     self.canvas.update_layer(self)
 
   def handle_release(self, event):
-    #self._set_duplicating(event.state & MOD_SHIFT)
+    self._set_duplicating(event.state & MOD_SHIFT)
     if self._offset == (0, 0):
       self.canvas.cancel_top_layer()
     else:
@@ -1166,7 +1186,7 @@ class RotateLayer(EditBasicLayer):
     center_pixel = (int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2))
     center_gc = grid.pixel_to_gridcoord(center_pixel, self.diameter)
     mapping = grid.rotate_gridcoords(self.points, center_gc, self._steps)
-    print center_gc, mapping
+    #print center_gc, mapping
     
     old_particles = {gc: deepcopy(self.get_particle_at(gc)) for gc in self.points}
     old_selection = set([p.gridcoord for p in self.selected])

@@ -13,11 +13,11 @@ sticky_all = tk.N + tk.S + tk.W + tk.E
 
 ### TODO
 # Implement virtual events for:
-#  <<Brush>>          changes to currently selected brush
-#  <<ParticleType>>   changes to characteristics of a particular particle type (i.e. name, color)
-#  <<BodyType>>       changes to characteristics of a particular body type (i.e. color)
-#  <<Model>>          changes to a Model object (adding/removing/painting particles)
-#  <<ModelSelect>>    new model selected for editing
+#  <<Brush>>           changes to currently selected brush
+#  <<ParticleSpecs>>   changes to characteristics of a particular particle type (i.e. name, color)
+#  <<BodySpecs>>       changes to characteristics of a particular body type (i.e. color)
+#  <<Model>>           changes to a Model object (adding/removing/painting particles)
+#  <<ModelSelect>>     new model selected for editing
 # Bind a widget to these events just as you would an ordinary event:
 #  widget.bind('<<Brush>>', handler_function)
 #

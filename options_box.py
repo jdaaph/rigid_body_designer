@@ -84,6 +84,8 @@ class OptionsBox(tk.Frame):
   def add_model_change_callback(self, func):
     self.model_change_callbacks.append(func)
   def trigger_model_change(self):
+    self.event_generate('<<ModelSelect>>', state = utils.event_data_register(self.get_model()))
+    print 'Generated <<ModelSelect>> event:', self.get_model()
     for f in self.model_change_callbacks:  f()
 
   def set_particle_specs(self, specs):
@@ -373,13 +375,13 @@ class BrushEditorBox(tk.Frame):
     name = self.part_name_var.get()
     color = self.part_color_var.get()
     key = utils.event_data_register(dict(name = name, color = color))
-    self.event_generate('<<ParticleType>>', state = key)
+    self.event_generate('<<ParticleSpecs>>', state = key)
   def update_bodyspecs(self):
     if not self.validate_color(self.body_color_var.get()):
       return
     color = self.body_color_var.get()
     key = utils.event_data_register(dict(color = color))
-    self.event_generate('<<BodyType>>', state = key)
+    self.event_generate('<<BodySpecs>>', state = key)
 
 
     

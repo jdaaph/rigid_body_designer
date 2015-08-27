@@ -1,4 +1,5 @@
 import itertools as it
+import math
 
 GRID_SQUARE = 0
 GRID_HEX_HORIZ = 1
@@ -33,8 +34,8 @@ class SquareGrid(object):
     y = coord[1] * cell_diameter
     return (x, y)
   def pixel_to_gridcoord(self, pixel, cell_diameter):
-    coord_x = int(pixel[0] / cell_diameter)
-    coord_y = int(pixel[1] / cell_diameter)
+    coord_x = int(math.floor(pixel[0] / cell_diameter))
+    coord_y = int(math.floor(pixel[1] / cell_diameter))
     return (coord_x, coord_y)
 
   def calc_bbox(self, gridcoords, padding = 0):
@@ -95,4 +96,3 @@ class SquareGrid(object):
         dx, dy = -dy, dx
       mapping[gc] = (axis_x + dx, axis_y + dy)
     return mapping
-    

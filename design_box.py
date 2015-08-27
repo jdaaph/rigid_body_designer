@@ -5,6 +5,7 @@ import itertools as it
 sticky_all = tk.N + tk.S + tk.E + tk.W
 
 from model_canvas import ModelCanvas
+import utils
 
 class DesignBox(tk.Frame):
   # canvas is the model....
@@ -30,5 +31,13 @@ class DesignBox(tk.Frame):
     self.yscrollbar['command'] = self.canvas.yview
     self.canvas.config(xscrollcommand = self.xscrollbar.set, yscrollcommand = self.yscrollbar.set)
 
+    ## Set up event handlers
+    self.bind_all('<<ModelSelect>>', self.handle_model_select)
+
   def switch_model(self, model):
     self.canvas.set_model(model)
+
+  def handle_model_select(self, event):
+    print 'modelselect'
+    model = utils.event_data_retrieve(event.state)
+    self.switch_model(model)

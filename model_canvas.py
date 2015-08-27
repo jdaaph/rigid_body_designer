@@ -7,7 +7,7 @@ from model import Model
 #from model_canvas_operation import MCO_Move
 #from particle import DrawnParticle
 #import grid
-#import utils
+import utils
 #import Operation
 #from brush import Brush
 #from copy import deepcopy
@@ -24,14 +24,17 @@ class ModelCanvas(tk.Canvas, object):
   def __init__(self, master, model = None, mode = 'view', **kargs):
     tk.Canvas.__init__(self, master, bd = 0, highlightthickness = 0, takefocus=1, **kargs)
 
+    ## Initialize instance variables
     self._model = model
-
     self._layers = []
 
+    ## Set up base layer for either editing or viewing. The thumbnails in the list of
+    ## models are set up for viewing mode while the main design box is set up for
+    ## editing mode.
     if mode == 'edit':
-      self._layers.append(EditBackgroundLayer(self))
+      self._layers.append(EditBackgroundLayer(self, model))
     elif mode == 'view':
-      self._layers.append(ViewLayer(self))
+      self._layers.append(ViewLayer(self, model))
     else:
       assert False, 'Unsupported mode: {0}'.format(mode)
     self.top_layer().start()
@@ -71,6 +74,4 @@ class ModelCanvas(tk.Canvas, object):
   def update_layer(self, layer):
     self.after_idle(layer.update)
     #print 'update requested:', layer
-
-
 
