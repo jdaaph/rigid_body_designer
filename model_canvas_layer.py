@@ -630,6 +630,9 @@ class SelectLayer(ViewLayer):
     self.add_event_handler(self.running_event_handlers, '<ButtonPress-2>', self.handle_rightpress)
     self.add_event_handler(self.running_event_handlers, '<<SelectAll>>', self.handle_selectall)
 
+    ## Tags for particle manipulation
+    self._selected_tag = self._tag + '_selected'
+
   #### Selection info
 
   #def set_model(self, model):
@@ -682,15 +685,20 @@ class SelectLayer(ViewLayer):
 
 
   #### Drawing functionality
+  def update_particles(self):
+    """ Updates the location/size of all particles marked as dirty in this layer.
+    Extends ViewLayer.update_particles(). """
+    ViewLayer.update_particles(self)
+    if len(self.canvas.find_withtag(self._tag)) > 0:
+      self.canvas.tag_raise(self._selected_tag, self._tag)
   def update_particle(self, p):
-    """ Updates the location/size of the single given particle on the canvas.
-    Extends ViewLayer.update_particle()
-    TODO: This might be easier/more elegant if we used tags. """
+    """ Extends ViewLayer.update_particle() to give it the self._selected_tag, if it is selected."""
     ViewLayer.update_particle(self, p)
 
-    if self.particle_selected(p):
-      oval_id = p.oval_id
-      self.canvas.tag_raise(oval_id, 'particle')
+    if p in self.selected:
+      self.canvas.addtag_withtag(self._selected_tag, p.oval_id)
+    else:
+      self.canvas.dtag(p.oval_id, self._selected_tag)
 
   def remove_particle_at(self, gridcoord):
     ViewLayer.remove_particle_at(self, gridcoord)
@@ -938,6 +946,9 @@ class EditBasicLayer(SelectLayer):
     layer = RotateLayer(self.canvas, model, coordinates, steps = steps)
     layer.brush = self._brush
     self.canvas.start_layer(layer)
+
+    if set(coordinates) == self.points:
+      self.canvas.merge_top_layer()
     
 
   def handle_flip(self, event):
@@ -1204,8 +1215,5 @@ class RotateLayer(EditBasicLayer):
 
     self.canvas.update_layer(self)
     #self.canvas.merge_top_layer()
-
-  def finish(self):
-    EditBasicLayer.finish(self)
 
   ## cancel(), clean(), update() inherited from EditBasicLayer
