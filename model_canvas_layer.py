@@ -26,7 +26,7 @@ A Layer object is guaranteed to contain the following attributes:
   model
     A Model representation of the layer's non-blank particles
   start()
-    Begins an operation.
+    Begins an operation and show the layer.
     For simple operations, this may involve completing the entire action,
     such as rotating the particles. More complex operations may only
     display the particles and await further user input.
@@ -353,7 +353,7 @@ class ViewLayer(ModelCanvasLayer):
     self.canvas.update_layer(self)
 
   def merge(self, layer):
-    assert False, "Editing is not permitted with ViewBaseLayer"
+    assert False, "Editing is not permitted with ViewLayer"
   def start_coordinates(self):
     return self._init_points
   def finish_coordinates(self):
@@ -695,7 +695,7 @@ class SelectLayer(ViewLayer):
     """ Extends ViewLayer.update_particle() to give it the self._selected_tag, if it is selected."""
     ViewLayer.update_particle(self, p)
 
-    if p in self.selected:
+    if self.particle_selected(p):
       self.canvas.addtag_withtag(self._selected_tag, p.oval_id)
     else:
       self.canvas.dtag(p.oval_id, self._selected_tag)
