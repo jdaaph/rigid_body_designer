@@ -44,6 +44,7 @@ def calc_model_lattice_positions(models, copies):
 
   tot_area = 0
   model_sizes = dict()
+  max_width = 0
   for model, num_copies in zip(models, copies):
     grid = model.grid
     bbox = grid.gridcoord_to_pixel_bbox(grid.calc_bbox(list(model.points_iterator())), diameter)
@@ -51,8 +52,10 @@ def calc_model_lattice_positions(models, copies):
     model_height = bbox[3] - bbox[1]
     model_sizes[model] = (model_width, model_height)
     tot_area += num_copies * (model_width * spacing_x) * (model_height * spacing_y)
+    max_width = max(max_width, model_width)
 
-  width = math.ceil(math.sqrt(tot_area)) # The height may be longer because of wasted space
+  width = max(max_width, math.ceil(math.sqrt(tot_area))) # The height may be longer because of wasted space
+
 
   lattice_positions = []
   x = 0
