@@ -71,7 +71,6 @@ def calc_model_lattice_positions(models, copies):
       x += math.ceil(spacing_x*model_w)
 
   lattice_positions = [(x - width/2.0, y - height/2.0) for x,y in lattice_positions]
-
   return ((width, height), lattice_positions)
 
 
