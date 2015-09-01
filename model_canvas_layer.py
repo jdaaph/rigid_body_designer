@@ -661,7 +661,8 @@ class SelectLayer(ViewLayer):
     self.new_selection(box_particles, append)
   def body_selection(self, particle, append = False):
     particles = self._calc_connected_body_particles(particle)
-    self.new_selection(particles, append)
+    if particles:
+      self.new_selection(particles, append)
   def toggle_selection(self, particles):
     # unused... remove this function?
     remove = set([])
@@ -683,6 +684,12 @@ class SelectLayer(ViewLayer):
     self.new_selection([self.get_particle_at(gc) for gc in self.points])
     self.canvas.update_layer(self)
 
+  def _calc_connected_body_particles(self, particle):
+    # might be low in efficiency
+    if particle.body_specs:
+      return set([self.get_particle_at(gc) for gc in self.points if not self.point_hidden(gc) and self.get_particle_at(gc).in_model and self.get_particle_at(gc).body_specs.idx==particle.body_specs.idx])
+    else:
+      return None
 
   #### Drawing functionality
   def update_particles(self):
